@@ -1,2 +1,7 @@
-# simcore-comp-backend
-Computational backend with distributed dag scheduler and result db
+# Computational Backend for simcore
+
+
+Overview
+========
+
+tbd

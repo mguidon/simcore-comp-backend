@@ -43,6 +43,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+.pytest_cache
 *.cover
 .hypothesis/
 
@@ -99,3 +100,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# code project settings
+.vscode
