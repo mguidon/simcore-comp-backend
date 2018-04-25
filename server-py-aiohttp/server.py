@@ -32,12 +32,16 @@ def create_app(args=()):
             return web.Response(text=f.read(), content_type='text/html')
 
 
-    # TODO: check whether this can be done at once
+    async def services(request):
+        return web.Response(text="This will be a list of comp. services")
+
     app.router.add_static('/qxapp', os.path.join(CLIENT_DIR, 'qxapp'))
     app.router.add_static('/transpiled', os.path.join(CLIENT_DIR, 'transpiled'))
     app.router.add_static('/resource', os.path.join(CLIENT_DIR, 'resource'))
     app.router.add_get('/', index)
-    
+
+    app.add_routes([web.get('/services', services)])
+
     return app
 
 if __name__ == '__main__':
