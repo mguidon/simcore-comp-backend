@@ -7,9 +7,13 @@ import logging
 import os
 
 from aiohttp import web
+from aiohttp_swagger import *
 
 from async_sio import sio
 from config import CONFIG
+
+from registry_api import registry_routes
+from comp_backend_api import comp_backend_routes
 
 
 def create_app(args=()):
@@ -31,16 +35,15 @@ def create_app(args=()):
         with open(index_path) as f:
             return web.Response(text=f.read(), content_type='text/html')
 
-
-    async def services(request):
-        return web.Response(text="This will be a list of comp. services")
-
     app.router.add_static('/qxapp', os.path.join(CLIENT_DIR, 'qxapp'))
     app.router.add_static('/transpiled', os.path.join(CLIENT_DIR, 'transpiled'))
     app.router.add_static('/resource', os.path.join(CLIENT_DIR, 'resource'))
     app.router.add_get('/', index)
 
-    app.add_routes([web.get('/services', services)])
+    app.router.add_routes(registry_routes)
+    app.router.add_routes(comp_backend_routes)
+
+    setup_swagger(app)
 
     return app
 

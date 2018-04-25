@@ -1,3 +1,5 @@
 aiohttp
+aiohttp-swagger
+aiohttp-devtools
 python-socketio
 requests
