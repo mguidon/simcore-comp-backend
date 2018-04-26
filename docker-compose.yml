@@ -1,15 +1,15 @@
 version: '3'
 services:
-  build-qx-dev:
+  client-qx:
     build:
       context: .
-      dockerfile: _dockerfiles/build-qx/Dockerfile
+      dockerfile: ./client-qx/Dockerfile
     volumes:
       - ./client-qx:/home/node/qxapp
   webserver:
     build:
       context: .
-      dockerfile: _dockerfiles/qxapp/python/Dockerfile
+      dockerfile: ./server-py-aiohttp/Dockerfile
       args:
         serverdir: server-py-aiohttp
     ports:
@@ -20,7 +20,7 @@ services:
       - ./server-py-aiohttp:/usr/src/app
       - ./client-qx/source-output:/usr/src/app/client
     depends_on: 
-      - build-qx-dev
+      - client-qx
 #  rabbit:
 #    image: rabbitmq:3-management
 #    environment:
