@@ -1,6 +1,7 @@
 import celery.states as states
 import requests
 import uuid
+import json
 
 from celery.result import AsyncResult
 from flask import Flask, request, abort, jsonify
@@ -31,6 +32,42 @@ def start_pipeline():
     #return "Pipeline {} started with id {}".format(name, pipeline_id)
    
     return jsonify(response)
+
+@app.route("/calc", methods=['GET'])
+def calc():
+    #ata = request.get_json()
+   
+    data_str = """{
+    "input": 
+    [
+           {
+           	"name": "N", 
+               	"value": 10
+           }, 
+           {
+           	"name": "xmin", 
+               	"value": -1.0
+           }, 
+           {
+           	"name": "xmax", 
+               	"value": 1.0
+           },
+           {
+               	"name": "func", 
+               	"value": "exp(x)*sin(x)"
+           }
+    ],
+    "container":
+    {
+    	"name": "masu.speag.com/comp.services/sidecar-solver",
+        "tag": "1.1"
+    }
+    }"""
+
+    data = json.loads(data_str)
+    task = celery.send_task('mytasks.run', args=[data], kwargs={})
+         
+    return "submitted"
 
 if __name__ == "__main__":
     app.run(port=8010, debug=True, host='0.0.0.0', threaded=True)
