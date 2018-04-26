@@ -17,7 +17,7 @@ from celery.signals import (after_setup_logger, task_failure, task_postrun,
 from celery.states import SUCCESS
 
 
-env=os.environ
+env = os.environ
 RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
 RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
 AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url='rabbit',port=5672)

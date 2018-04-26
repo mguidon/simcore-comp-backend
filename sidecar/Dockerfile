@@ -13,4 +13,8 @@ RUN pip install sqlalchemy-json
 EXPOSE 8000
 
 WORKDIR /work
+
+ENV TZ=Europe/Zurich
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 ENTRYPOINT celery -A sidecar worker -c 1 --loglevel=info
