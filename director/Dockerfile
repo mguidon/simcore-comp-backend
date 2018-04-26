@@ -4,7 +4,7 @@ LABEL maintainer="Manuel Guidon <guidon@itis.ethz.ch"
 RUN conda update conda
 RUN conda install flask networkx sqlalchemy psycopg2
 RUN conda install -c conda-forge celery
-RUN pip install sqlalchemy-json
+RUN pip install sqlalchemy-json pika
 
 EXPOSE 8010
 

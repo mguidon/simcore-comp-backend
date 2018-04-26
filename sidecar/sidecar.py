@@ -1,32 +1,36 @@
 import hashlib
 import json
 import os
+import random
 import shutil
 import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import random
 
 import docker
-import requests
+import pika
 from celery import Celery
 from celery.result import AsyncResult
 from celery.signals import (after_setup_logger, task_failure, task_postrun,
                             task_prerun)
 from celery.states import SUCCESS
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from pipeline_models import ComputationalPipeline, ComputationalTask, Base, UNKNOWN, PENDING, RUNNING, SUCCESS, FAILED
-
+from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
+                             ComputationalPipeline, ComputationalTask)
 
 env = os.environ
 RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
 RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
-AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url='rabbit',port=5672)
+RABBITMQ_LOG_CHANNEL = env.get('RABBITMQ_LOG_CHANNEL','comp.backend.channels.log')
+RABBITMQ_PROGRESS_CHANNEL = env.get('RABBITMQ_PROGRESS_CHANNEL','comp.backend.channels.progress')
+RABBITMQ_HOST="rabbit"
+RABBITMQ_PORT=5672
+
+AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url=RABBITMQ_HOST, port=RABBITMQ_PORT)
 
 CELERY_BROKER_URL = AMQ_URL #env.get('CELERY_BROKER_URL','amqp://z43:z43@rabbit:5672'),
 #MYSQL CELERY_RESULT_BACKEND=env.get('CELERY_RESULT_BACKEND','db+' + DATABASE_URI)
@@ -35,6 +39,10 @@ CELERY_RESULT_BACKEND=env.get('CELERY_RESULT_BACKEND','rpc://')
 celery= Celery('tasks',
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND)
+
+credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+parameters = pika.ConnectionParameters(host='rabbit',port=5672, credentials=credentials, connection_attempts=100)
+
 
 
 io_dirs = {}
@@ -293,6 +301,11 @@ def _is_node_ready(task, graph):
     return True
 
 def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+    channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
+    channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
+
     task.job_id = task_id
     task.state = RUNNING
     session.commit()
@@ -301,12 +314,16 @@ def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
     task_sleep = random.randint(2,8)
     dp = 1.0 / (task_sleep-1)
     for i in range(task_sleep):
-        print('{}: Sleep, sec: {}'.format(task.internal_id, i))
+        msg = "{}: Sleep, sec: {}".format(task.internal_id, i)
+        prog_msg = "{} %".format(i*dp * 100)
+        channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_msg)
+        channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=msg)
         time.sleep(1)
 
     # postprocess
     task.state = SUCCESS
     session.commit()
+    connection.close()
     
 @celery.task(name='mytasks.pipeline', bind=True)
 def pipeline(self, pipeline_id, node_id=None):
