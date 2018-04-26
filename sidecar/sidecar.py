@@ -32,8 +32,7 @@ RABBITMQ_PORT=5672
 
 AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url=RABBITMQ_HOST, port=RABBITMQ_PORT)
 
-CELERY_BROKER_URL = AMQ_URL #env.get('CELERY_BROKER_URL','amqp://z43:z43@rabbit:5672'),
-#MYSQL CELERY_RESULT_BACKEND=env.get('CELERY_RESULT_BACKEND','db+' + DATABASE_URI)
+CELERY_BROKER_URL = AMQ_URL
 CELERY_RESULT_BACKEND=env.get('CELERY_RESULT_BACKEND','rpc://')
 
 celery= Celery('tasks',
@@ -41,14 +40,11 @@ celery= Celery('tasks',
     backend=CELERY_RESULT_BACKEND)
 
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-parameters = pika.ConnectionParameters(host='rabbit',port=5672, credentials=credentials, connection_attempts=100)
-
-
+parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=credentials, connection_attempts=100)
 
 io_dirs = {}
 pool = ThreadPoolExecutor(1)
 run_pool = True
-
 
 env = os.environ
 
@@ -64,9 +60,6 @@ db = create_engine(DB_URL, client_encoding='utf8')
 Session = sessionmaker(db)
 session = Session()
 
-#REDIS r = redis.StrictRedis(host="redis", port=6379)
-#REDIS r.flushall()
-#REDIS r.set('count', 0)
 def delete_contents(folder):
     for the_file in os.listdir(folder):
         file_path = os.path.join(folder, the_file)

@@ -41,7 +41,7 @@ RABBITMQ_PORT=5672
 AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url=RABBITMQ_HOST, port=RABBITMQ_PORT)
 
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-parameters = pika.ConnectionParameters(host='rabbit',port=5672, credentials=credentials, connection_attempts=100)
+parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=credentials, connection_attempts=100)
 connection = pika.BlockingConnection(parameters)
 channel = connection.channel()
 
