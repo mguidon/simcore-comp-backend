@@ -31,6 +31,12 @@ Base.metadata.create_all(db)
 
 app = Flask(__name__)
 
+@app.route('/drop_pipeline_db')
+def drop_pipeline_db():
+    Base.metadata.drop_all(db)
+    Base.metadata.create_all(db)
+    return "DB tables delete and recreated"
+
 @app.route('/stop_pipeline')
 def stop_pipeline():
     return "Pipeline stopped"
@@ -57,18 +63,21 @@ def start_pipeline():
 
     pipeline_id = pipeline.pipeline_id
 
+    internal_id = 1
     for node_id in nodes:
-        new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id)
+        new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id)
+        internal_id = internal_id+1
         session.add(new_task)
 
     session.commit()
 
-    #task = celery.send_task('mytasks.pipeline', args=(pipeline.id,), kwargs={})
+    task = celery.send_task('mytasks.pipeline', args=(pipeline_id,), kwargs={})
 
     response = {}
     response['pipeline_name'] = pipeline_name
     response['pipeline_id'] = pipeline_id
 
+    
     return jsonify(response)
 
 @app.route("/calc", methods=['GET'])

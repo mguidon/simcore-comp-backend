@@ -7,6 +7,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import random
 
 import docker
 import requests
@@ -15,6 +16,11 @@ from celery.result import AsyncResult
 from celery.signals import (after_setup_logger, task_failure, task_postrun,
                             task_prerun)
 from celery.states import SUCCESS
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from pipeline_models import ComputationalPipeline, ComputationalTask, Base, UNKNOWN, PENDING, RUNNING, SUCCESS, FAILED
 
 
 env = os.environ
@@ -34,6 +40,21 @@ celery= Celery('tasks',
 io_dirs = {}
 pool = ThreadPoolExecutor(1)
 run_pool = True
+
+
+env = os.environ
+
+POSTGRES_URL = "postgres:5432"
+POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
+POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
+POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
+
+DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
+
+db = create_engine(DB_URL, client_encoding='utf8')
+
+Session = sessionmaker(db)
+session = Session()
 
 #REDIS r = redis.StrictRedis(host="redis", port=6379)
 #REDIS r.flushall()
@@ -240,9 +261,6 @@ def run(self, data):
     
     return str(do_run(task, task_id, data))
 
-#MYSQL engine = create_engine(DATABASE_URI)
-#MYSQL Session = sessionmaker(bind=engine)
-
 def find_entry_point(G):
     result = []
     for node in G.nodes:
@@ -250,67 +268,70 @@ def find_entry_point(G):
             result.append(node)
     return result
 
-@task_prerun.connect
-def prerun(*args, **kwargs):
-    pass
-#MYSQL    global session
-#MYSQL    session = Session()
+#@task_prerun.connect
+#def prerun(*args, **kwargs):
+#    global session
+#    session = Session()
+#
+#
+#@task_postrun.connect
+#def postrun(*args, **kwargs):
+#    session.flush()
+#    session.close()
 
+def _is_node_ready(task, graph):
+    tasks = session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
 
-@task_postrun.connect
-def postrun(*args, **kwargs):
-    pass
-#MYSQL    session.flush()
-#MYSQL   session.close()
-
-def _is_node_rdy(task, graph):
-#MYSQL    tasks = session.query(Task).filter(Task.id.in_(list(graph.predecessors(task.id)))).all()
-#MYSQL    for dep_task in tasks:
-#MYSQL        if not dep_task.celery_task_uid or \
-#MYSQL           not AsyncResult(dep_task.celery_task_uid).state == SUCCESS:
-#MYSQL            return False
+    print("TASK {} ready? Checking ..".format(task.node_id))
+    for dep_task in tasks:
+        job_id = dep_task.job_id
+        if job_id:
+            print("DEPENDS ON {} with job_id {} and stat {}".format(dep_task.node_id, job_id, dep_task.state))
+        if not dep_task.job_id or \
+            not dep_task.state == SUCCESS:
+            return False
     return True
 
-def _process_task_node(celery_task, task, task_id, workflow_id, cur_task_id):
-    task.celery_task_uid = task_id
-#MYSQL    session.add(task)
-#MYSQL    session.commit()
-    log_key = task_id + ":log"
-    prog_key = task_id + ":progress"
-    #r.rpush(log_key, 'Runnning Workflow {} and Task {} via redis'.format(workflow_id, cur_task_id).encode('utf-8'))
-    # simulate that task runs
-    dp = 1.0 / (task.sleep-1)
-    for i in range(task.sleep):
-        print('{}: Sleep, sec: {}'.format(task_id, i))
-#REDIS        r.rpush(log_key, '{}: Sleep, sec: {} of {}'.format(cur_task_id, i+1, task.sleep))
-        process_percent = i * dp 
-#REDIS        r.set(prog_key, str(process_percent).encode('utf-8'))
+def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
+    task.job_id = task_id
+    task.state = RUNNING
+    session.commit()
+    print('Runnning Pipeline {} and node {}'.format(pipeline_id, task.internal_id))
+
+    task_sleep = random.randint(2,8)
+    dp = 1.0 / (task_sleep-1)
+    for i in range(task_sleep):
+        print('{}: Sleep, sec: {}'.format(task.internal_id, i))
         time.sleep(1)
+
+    # postprocess
+    task.state = SUCCESS
+    session.commit()
     
 @celery.task(name='mytasks.pipeline', bind=True)
-def pipeline(self, workflow_id, cur_task_id=None):
-    pass
-#MYSQL    workflow = session.query(Workflow).filter_by(id=workflow_id).one()
-#MYSQL    graph = workflow.execution_graph
-#MYSQL    next_task_ids = []
-#MYSQL    if cur_task_id:
-#MYSQL        task = session.query(Task).get(cur_task_id)
-#MYSQL
-#MYSQL        if task.celery_task_uid and AsyncResult(task.celery_task_uid).state == SUCCESS:
-#MYSQL            print("NOPE 0", task.celery_task_uid, cur_task_id)
-#MYSQL            return
-#MYSQL
-#MYSQL        if not _is_node_rdy(task, graph):
-#MYSQL            print("NOPE 1")
-#MYSQL            return
-#MYSQL
-#MYSQL        _process_task_node(self, task, self.request.id, workflow_id, cur_task_id)
-#MYSQL
-#MYSQL        next_task_ids = list(graph.successors(cur_task_id))
-#MYSQL    else:
-#MYSQL        next_task_ids = find_entry_point(graph)
-#MYSQL
-#MYSQL    self.update_state(state=SUCCESS)
-#MYSQL
-#MYSQL    for task_id in next_task_ids:
-#MYSQL        task = celery.send_task('mytasks.pipeline', args=(workflow_id, task_id), kwargs={})
+def pipeline(self, pipeline_id, node_id=None):
+    pipeline = session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
+    graph = pipeline.execution_graph
+    next_task_nodes = []
+    if node_id:
+        task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
+
+        # already done or running and happy
+        if task.job_id and task.state == SUCCESS or task.state == RUNNING:
+            print("ALREADY DONE", task.job_id, task.internal_id)
+            return
+        # not yet ready
+        if not _is_node_ready(task, graph):
+            print("NODE {} NOT YET READY".format(task.internal_id))
+            return
+
+        _process_task_node(self, task, self.request.id, pipeline_id, node_id)
+
+        next_task_nodes = list(graph.successors(node_id))
+    else:
+        next_task_nodes = find_entry_point(graph)
+
+    self.update_state(state=SUCCESS)
+
+    for node_id in next_task_nodes:
+        task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})

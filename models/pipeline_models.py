@@ -44,6 +44,8 @@ class ComputationalTask(Base):
     node_id = Column(String)
     # celery task id
     job_id = Column(String)
+    # internal id (better for debugging, nodes from 1 to N)
+    internal_id = Column(Integer)
 
     input = Column(MutableJson)
     output = Column(MutableJson)

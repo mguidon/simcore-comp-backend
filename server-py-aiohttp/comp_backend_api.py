@@ -41,7 +41,7 @@ async def start_pipeline(request):
     data = {}
     data['pipeline_name'] = "My Pipeline"
     node_ids = []
-    for i in range(8):
+    for _ in range(8):
         node_ids.append(str(uuid.uuid4()))
 
     data['nodes'] = node_ids
