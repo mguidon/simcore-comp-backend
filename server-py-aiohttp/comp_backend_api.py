@@ -10,6 +10,8 @@ import async_timeout
 import uuid
 import json
 
+from setup import *
+
 comp_backend_routes = web.RouteTableDef()
 
 async def async_request(method, session, url, json=None, timeout=10):
@@ -61,12 +63,34 @@ async def start_pipeline(request):
 
     data['dag'] = dag_adjacency_list
 
-    url = "http://director:8010/start_pipeline"
-    url = "http://director-aiohttp:8010/start_pipeline"
-   
-    
-    response = None
-    async with aiohttp.ClientSession() as session:
-        response = await async_request(method='POST', session=session, url=url, json=data)
+     # try to parse data
+    pipeline_name = data['pipeline_name']
+    nodes = data['nodes']
+    dag_adjacency_list = data['dag']
+ 
+    pipeline = ComputationalPipeline(dag_adjacency_list=dag_adjacency_list,
+        state=0)
 
-    return web.Response(text="Pipeline started, director returns {} from id {}".format(str(response), id))
+    session.add(pipeline)
+    session.flush()
+
+    pipeline_id = pipeline.pipeline_id
+
+    internal_id = 1
+    for node_id in nodes:
+        new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id)
+        internal_id = internal_id+1
+        session.add(new_task)
+
+    session.commit()
+
+    task = celery.send_task('mytasks.pipeline', args=(pipeline_id,), kwargs={})
+
+    response = {}
+    response['pipeline_name'] = pipeline_name
+    response['pipeline_id'] = str(uuid.uuid4())
+
+    log = "asdfasdfasdf"
+    await sio.emit("logger", data = log)
+    
+    return web.json_response(response)

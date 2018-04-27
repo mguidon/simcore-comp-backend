@@ -31,10 +31,8 @@ WORKDIR /usr/src/app
 VOLUME ${SIMCORE_WEB_OUTDIR}
 VOLUME /usr/src/app
 
-COPY $serverdir/requirements.txt requirements.txt
-RUN python --version \
-    && pip3 install --no-cache-dir -r ./requirements.txt \
-    && pip list --format=columns
+RUN pip install aiohttp aiohttp-swagger aiohttp-devtools python-socketio requests \
+    networkx sqlalchemy psycopg2 celery sqlalchemy-json pika
 
 EXPOSE $SIMCORE_WEB_PORT
 
