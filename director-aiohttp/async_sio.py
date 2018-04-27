@@ -25,16 +25,6 @@ async def test(sid, data):
     result = "hello from aiohttp aa"
     await sio.emit('test', data=result, room=sid)
 
-@sio.on('log')
-async def log(sid, data):
-    result = "hello from aiohttp aa"
-    await sio.emit('log', data=result, room=sid)
-
-@sio.on('register_for_log')
-async def register_for_log(sid, data):
-    result = "Register_log called for {}".format(data)
-    await sio.emit('register_for_log', data=result, room=sid)
-
 @sio.on('disconnect')
 def disconnect(sid):
     print('disconnect ', sid)

@@ -21,7 +21,7 @@ async def async_request(method, session, url, json=None, timeout=10):
             async with session.post(url, json=json) as response:
                 return await response.json()
 
-@comp_backend_routes.get('/start_pipeline')
+@comp_backend_routes.post('/start_pipeline')
 async def start_pipeline(request):
     """
     ---
@@ -36,6 +36,10 @@ async def start_pipeline(request):
         "405":
             description: invalid HTTP Method
     """
+
+    request_data = await request.json()
+
+    id = request_data['pipeline_mockup_id']
 
     #  ccreate some fake data for now
     data = {}
@@ -58,10 +62,11 @@ async def start_pipeline(request):
     data['dag'] = dag_adjacency_list
 
     url = "http://director:8010/start_pipeline"
+    url = "http://director-aiohttp:8010/start_pipeline"
    
     
     response = None
     async with aiohttp.ClientSession() as session:
         response = await async_request(method='POST', session=session, url=url, json=data)
 
-    return web.Response(text="Pipeline started, director returns {}".format(str(response)))
+    return web.Response(text="Pipeline started, director returns {} from id {}".format(str(response), id))

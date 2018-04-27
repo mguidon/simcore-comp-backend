@@ -21,13 +21,13 @@ services:
       - ./client-qx/source-output:/usr/src/app/client
     depends_on: 
       - client-qx
-  rabbit:
-    image: rabbitmq:3-management
-    environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
-    ports:
-      - "15672:15672"
+#  rabbit:
+#    image: rabbitmq:3-management
+#    environment:
+#      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+#      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+#    ports:
+#      - "15672:15672"
 #  flower:
 #    image: ondrejit/flower:latest
 #    command: --broker=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbit:5672
@@ -35,58 +35,72 @@ services:
 #      - 5555:5555
 #    depends_on:
 #      - rabbit
-  director:
+#  director:
+#    build:
+#      context: .
+#      dockerfile: ./director/Dockerfile
+#    volumes:
+#      - ./director:/work/director
+#      - ./models:/work/models
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    ports:
+#      - "8010:8010"
+#    depends_on:
+#      - rabbit
+#    environment:
+#      - PYTHONPATH=/work/models
+  director-aiohttp:
     build:
       context: .
-      dockerfile: ./director/Dockerfile
+      dockerfile: ./director-aiohttp/Dockerfile
     volumes:
-      - ./director:/work/director
+      - ./director-aiohttp:/work/director
       - ./models:/work/models
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "8010:8010"
-    depends_on:
-      - rabbit
+      - "8011:8010"
+#    depends_on:
+#      - rabbit
     environment:
       - PYTHONPATH=/work/models
-  sidecar:
-    build:
-      context: .
-      dockerfile: ./sidecar/Dockerfile
-    volumes:
-      - input:/input
-      - output:/output
-      - log:/log
-      - ./sidecar:/work/sidecar
-      - ./models:/work/models
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "8000:8000"
-    environment:
-      - PYTHONPATH=/work/models
-    environment:
-      - RABBITMQ_USER=${RABBITMQ_USER}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
-    depends_on:
-      - rabbit
-  postgres:
-    restart: always
-    image: postgres:10
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    volumes:
-      - postgres:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - 8080:8080
-    depends_on:
-      - postgres
+#  sidecar:
+#    build:
+#      context: .
+#      dockerfile: ./sidecar/Dockerfile
+#    volumes:
+#      - input:/input
+#      - output:/output
+#      - log:/log
+#      - ./sidecar:/work/sidecar
+#      - ./models:/work/models
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    ports:
+#      - "8000:8000"
+#    environment:
+#      - PYTHONPATH=/work/models
+#    environment:
+#      - RABBITMQ_USER=${RABBITMQ_USER}
+#      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+#    depends_on:
+#      - rabbit
+#  postgres:
+#    restart: always
+#    image: postgres:10
+#    environment:
+#      - POSTGRES_USER=${POSTGRES_USER}
+#      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+#      - POSTGRES_DB=${POSTGRES_DB}
+#    volumes:
+#      - postgres:/var/lib/postgresql/data
+#    ports:
+#      - "5432:5432"
+#  adminer:
+#    image: adminer
+#    restart: always
+#    ports:
+#      - 8080:8080
+#    depends_on:
+#      - postgres
 volumes:
   input:
   output:

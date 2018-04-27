@@ -106,25 +106,45 @@ qx.Class.define("qxapp.Application", {
       startPipelineBtn.setHeight(40);
       startPipelineBtn.setWidth(100);
       startPipelineBtn.setCenter(true);
+      
+      // ui start pipeline
       startPipelineBtn.addListener("execute", function () {
         if (can_start){
           this._workflowView.StartPipeline();
         }
       }, this);
 
+      // post pipeline
       startPipelineBtn.addListener("execute", function () {
-        if (!this._socket.slotExists("pipeline")) {
-          this._socket.on("pipeline", function (val) {
-            console.log(val);
-          });
-        }
         if (can_start){
-          this._socket.emit("pipeline", current_pipeline);
+          var req = new qx.io.request.Xhr();
+          var data = {};
+          data["pipeline_mockup_id"] = current_pipeline;
+          req.set({
+            url: "/start_pipeline",
+            method: "POST",
+            requestData: qx.util.Serializer.toJson(data)
+          });
+          req.addListener("success", onPipelinesubmitted, this);
+          req.send();
         }
       }, this);
 
-       // Add an event listeners
-       startPipelineBtn.addListener("execute", function () {
+      // register for logs
+      function onPipelinesubmitted(e) {
+        var _req = e.getTarget();
+        console.debug("Everything went fine!!");
+        console.debug("status  :", _req.getStatus());
+        console.debug("phase   :", _req.getPhase());
+        console.debug("response: ", _req.getResponse());
+        
+        // register for log and progress
+        this._socket.emit("register_for_log", "123" );
+        this._socket.emit("register_for_progress", "123" );
+      }
+
+      // callback for incoming logs
+      startPipelineBtn.addListener("execute", function () {
         if (!this._socket.slotExists("logger")) {
           this._socket.on("logger", function (data) {
             var newLogText = JSON.stringify(data);
@@ -134,45 +154,76 @@ qx.Class.define("qxapp.Application", {
         this._socket.emit("logger");
       }, this);
 
-       // Add an event listeners
-       startPipelineBtn.addListener("execute", function () {
-        if (!this._socket.slotExists("progress")) {
-          this._socket.on("progress", function (data) {
-            updateFromProgress(data);
-            
-            var len = data.length;
-            var done = true;
-            for (var i=0; i<len; i++){
-              if (data[i] != 1.0){
-                done = false;
-                break;
-              }
-            }
-            can_start = done;
-          });
-        }
-        can_start = false;
-        this._socket.emit("progress");
-      }, this);
 
+      // startPipelineBtn.addListener("execute", function () {
+      //   if (!this._socket.slotExists("pipeline")) {
+      //     this._socket.on("pipeline", function (val) {
+      //       console.log(val);
+      //     });
+      //   }
+      //   if (can_start){
+      //     this._socket.emit("pipeline", current_pipeline);
+      //   }
+      // }, this);
+//
+// 
+      //  // Add an event listeners
+      //  startPipelineBtn.addListener("execute", function () {
+      //   if (!this._socket.slotExists("progress")) {
+      //     this._socket.on("progress", function (data) {
+      //       updateFromProgress(data);
+      //       
+      //       var len = data.length;
+      //       var done = true;
+      //       for (var i=0; i<len; i++){
+      //         if (data[i] != 1.0){
+      //           done = false;
+      //           break;
+      //         }
+      //       }
+      //       can_start = done;
+      //     });
+      //   }
+      //   can_start = false;
+      //   this._socket.emit("progress");
+      // }, this);
+// 
 
       var stopPipelineBtn = new qx.ui.toolbar.Button("Stop");
       stopPipelineBtn.setHeight(40);
       stopPipelineBtn.setWidth(100);
       stopPipelineBtn.setCenter(true);
-      stopPipelineBtn.addListener("execute", function (e) {
-        this._workflowView.StopPipeline();
-        can_start = true;
-      }, this);
 
-      stopPipelineBtn.addListener("execute", function () {
-        if (!this._socket.slotExists("test")) {
-          this._socket.on("test", function (val) {
-            console.log(val);
-          });
-        }
-        this._socket.emit("test");
-      }, this);
+
+      //stopPipelineBtn.addListener("execute", function (e) {
+      //  this._workflowView.StopPipeline();
+      //  can_start = true;
+      //}, this);
+//
+      //stopPipelineBtn.addListener("execute", function () {
+      //  if (!this._socket.slotExists("register_for_log")) {
+      //    this._socket.on("register_for_log", function (val) {
+      //      console.log(val);
+      //    });
+      //  }
+//
+      //  var req = new qx.io.request.Xhr();
+      //  var data = {};
+      //  data["pipeline_mockup_id"] = 0;
+      //  req.set({
+      //    url: "/start_pipeline",
+      //    method: "GET",
+      //    requestData: qx.util.Serializer.toJson(data)
+      //  });
+//
+      //req.addListener("success", onPipelinesubmitted, this);
+      //req.send();
+      // // this._socket.emit("register_for_log", "123" );
+      //}, this);
+//
+//
+      //
+
 
       part2.add(startPipelineBtn);
       part2.add(stopPipelineBtn);
