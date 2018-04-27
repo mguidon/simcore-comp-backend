@@ -6,6 +6,9 @@ import uuid
 
 import celery.states as states
 import pika
+import asyncio
+import aio_pika
+
 import requests
 from celery.result import AsyncResult
 from sqlalchemy import create_engine
@@ -41,58 +44,26 @@ RABBITMQ_PORT=5672
 
 AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url=RABBITMQ_HOST, port=RABBITMQ_PORT)
 
-credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=credentials, connection_attempts=100)
-connection = pika.BlockingConnection(parameters)
-channel = connection.channel()
+async def on_message(message: aio_pika.IncomingMessage):
+    with message.process():
+        print("[x] %r" % message.body)
+        await sio.emit("logger", data = message.body)
 
-async def _log_callback(ch, method, properties, body):
-    log = "{}".format(body)
-    await sio.emit("logger", data = log)
-    #print("Log: {}".format(body))
+async def connect_to_rabbit():
+    print("aaaaaaaaaaaaaaaaaaaaa")
+    connection = await aio_pika.connect(AMQ_URL,connection_attempts=100)
+    channel = await connection.channel()
+    await channel.set_qos(prefetch_count=1)
+    
+    logs_exchange = await channel.declare_exchange(
+        RABBITMQ_LOG_CHANNEL, aio_pika.ExchangeType.FANOUT
+    )
 
-async def _prog_callback(ch, method, properties, body):
-    progress = "{}".format(body)
-    await sio.emit("progress", data = progress)
-    print("Progress: {}".format(body))
+    # Declaring queue
+    queue = await channel.declare_queue(exclusive=True)
 
-callbacks = {RABBITMQ_LOG_CHANNEL : _log_callback, RABBITMQ_PROGRESS_CHANNEL : _prog_callback}
+    # Binding the queue to the exchange
+    await queue.bind(logs_exchange)
 
-
-for ch in [RABBITMQ_PROGRESS_CHANNEL]:
-    channel.queue_declare(queue=ch)
-    channel.exchange_declare(exchange=ch, exchange_type='fanout')
-
-    result = channel.queue_declare(exclusive=True)
-    queue_name = result.method.queue
-
-    channel.queue_bind(exchange=ch, queue=queue_name)
-
-    async def _consume_logs(channel, callback, queue):
-        print("CONSUMER THREAD STARTED")
-        channel.basic_consume(callback, queue=queue, no_ack=True)
-
-        t1 = threading.Thread(target=channel.start_consuming)
-        t1.start()
-        t1.join(0)
-
-    _consume_logs(channel, callbacks[ch], queue_name)
-
-for ch in [RABBITMQ_LOG_CHANNEL]:
-    channel.queue_declare(queue=ch)
-    channel.exchange_declare(exchange=ch, exchange_type='fanout')
-
-    result = channel.queue_declare(exclusive=True)
-    queue_name = result.method.queue
-
-    channel.queue_bind(exchange=ch, queue=queue_name)
-
-    async def _consume_logs(channel, callback, queue):
-        print("CONSUMER THREAD STARTED")
-        channel.basic_consume(callback, queue=queue, no_ack=True)
-
-        t1 = threading.Thread(target=channel.start_consuming)
-        t1.start()
-        t1.join(0)
-
-    _consume_logs(channel, callbacks[ch], queue_name)
+    # Start listening the queue with name 'task_queue'
+    await queue.consume(on_message)

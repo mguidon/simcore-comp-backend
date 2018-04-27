@@ -32,8 +32,9 @@ VOLUME ${SIMCORE_WEB_OUTDIR}
 VOLUME /usr/src/app
 
 RUN pip install aiohttp aiohttp-swagger aiohttp-devtools python-socketio requests \
-    networkx sqlalchemy psycopg2 celery sqlalchemy-json pika
+    networkx sqlalchemy psycopg2 celery sqlalchemy-json aio-pika
 
 EXPOSE $SIMCORE_WEB_PORT
 
-ENTRYPOINT ["/bin/sh", "-c", "adev runserver --host ${SIMCORE_WEB_HOSTNAME} --port ${SIMCORE_WEB_PORT} --app-factory create_app server.py"]
+#ENTRYPOINT ["/bin/sh", "-c", "adev runserver --host ${SIMCORE_WEB_HOSTNAME} --port ${SIMCORE_WEB_PORT} --app-factory create_app server.py"]
+CMD ["python", "-u", "server.py"]
