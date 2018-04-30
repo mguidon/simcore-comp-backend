@@ -156,7 +156,10 @@ qx.Class.define("qxapp.Application", {
       startPipelineBtn.addListener("execute", function () {
         if (!this._socket.slotExists("logger")) {
           this._socket.on("logger", function (data) {
-            var newLogText = JSON.stringify(data);
+            var d = JSON.parse(data);
+            var node = d["Node"];
+            var msg = d["Message"];
+            var newLogText = node + " reports: " + msg + "\n";  
             textarea.setValue(newLogText + textarea.getValue());
           });
         }
@@ -167,11 +170,10 @@ qx.Class.define("qxapp.Application", {
       startPipelineBtn.addListener("execute", function () {
         if (!this._socket.slotExists("progress")) {
           this._socket.on("progress", function (data) {
-            // console.debug("Progress", data);
-            var d = JSON.parse(data)
-            var node = d["Node"]
-            var progress = d["Progress"]
-            updateFromProgress(node, progress, slices_k[current_pipeline])
+            var d = JSON.parse(data);
+            var node = d["Node"];
+            var progress = d["Progress"];
+            updateFromProgress(node, progress, slices_k[current_pipeline]);
           });
         }
       }, this);

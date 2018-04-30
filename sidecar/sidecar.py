@@ -307,15 +307,17 @@ def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
     task_sleep = random.randint(2,8)
     dp = 1.0 / (task_sleep-1)
     for i in range(task_sleep):
-        msg = "Task #{}: sleeping for {} second[s]".format(task.internal_id, i)
-        prog_msg = "{} %".format(i*dp * 100)
-        progress = i*dp
+        msg = "Slept for {} second[s] out of {}".format(i+1, task_sleep)
         log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : msg}
         log_body = json.dumps(log_data)
+
+        progress = i*dp        
         prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
         prog_body = json.dumps(prog_data)
+
         channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
         channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
+        
         time.sleep(1)
 
     # postprocess

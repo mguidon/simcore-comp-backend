@@ -49,8 +49,7 @@ async def on_message(message: aio_pika.IncomingMessage):
         data = json.loads(message.body)
         print("[x] %r" % data)
         if data["Channel"] == "Log":
-            log = data['Message'] + "\n"
-            await sio.emit("logger", data = log)
+            await sio.emit("logger", data = json.dumps(data))
         elif data["Channel"] == "Progress":
             print(data["Progress"])
             await sio.emit("progress", data = json.dumps(data))
