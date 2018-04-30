@@ -102,6 +102,14 @@ qx.Class.define("qxapp.Application", {
 
       var can_start = true;
 
+      var global_progress_data = [];
+      var length = 100;
+      for(var i = 0; i < length; i++) {
+        global_progress_data.push(-1.0);
+      }
+
+      var slices_k = [8, 15, 42];
+
       var startPipelineBtn = new qx.ui.toolbar.Button("Start");
       startPipelineBtn.setHeight(40);
       startPipelineBtn.setWidth(100);
@@ -117,6 +125,7 @@ qx.Class.define("qxapp.Application", {
       // post pipeline
       startPipelineBtn.addListener("execute", function () {
         if (can_start){
+          clearProgressData();
           var req = new qx.io.request.Xhr();
           var data = {};
           data["pipeline_mockup_id"] = current_pipeline;
@@ -148,24 +157,24 @@ qx.Class.define("qxapp.Application", {
         if (!this._socket.slotExists("logger")) {
           this._socket.on("logger", function (data) {
             var newLogText = JSON.stringify(data);
-            textarea.setValue(data + textarea.getValue());
+            textarea.setValue(newLogText + textarea.getValue());
           });
         }
         this._socket.emit("logger");
       }, this);
 
-
-      // startPipelineBtn.addListener("execute", function () {
-      //   if (!this._socket.slotExists("pipeline")) {
-      //     this._socket.on("pipeline", function (val) {
-      //       console.log(val);
-      //     });
-      //   }
-      //   if (can_start){
-      //     this._socket.emit("pipeline", current_pipeline);
-      //   }
-      // }, this);
-//
+      // callback for incoming logs
+      startPipelineBtn.addListener("execute", function () {
+        if (!this._socket.slotExists("progress")) {
+          this._socket.on("progress", function (data) {
+            // console.debug("Progress", data);
+            var d = JSON.parse(data)
+            var node = d["Node"]
+            var progress = d["Progress"]
+            updateFromProgress(node, progress, slices_k[current_pipeline])
+          });
+        }
+      }, this);
 // 
       //  // Add an event listeners
       //  startPipelineBtn.addListener("execute", function () {
@@ -267,8 +276,16 @@ qx.Class.define("qxapp.Application", {
 
       var workflowview = this._workflowView;
 
-      function updateFromProgress(data) {
-        workflowview.UpdatePipeline(data);
+      function clearProgressData() {
+        var length = global_progress_data.length;
+        global_progress_data = [];
+        for(var i = 0; i < length; i++) {
+          global_progress_data[i] = -1.0
+        }
+      }
+      function updateFromProgress(node, progress, slice_k) {
+        global_progress_data[node-1] = progress;
+        workflowview.UpdatePipeline(global_progress_data.slice(0, slice_k));
       }
 
     },

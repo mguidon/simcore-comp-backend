@@ -88,9 +88,6 @@ async def start_pipeline(request):
 
     response = {}
     response['pipeline_name'] = pipeline_name
-    response['pipeline_id'] = str(uuid.uuid4())
+    response['pipeline_id'] = str(pipeline_id)
 
-    log = "asdfasdfasdf"
-    await sio.emit("logger", data = log)
-    
     return web.json_response(response)

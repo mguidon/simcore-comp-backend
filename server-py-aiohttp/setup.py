@@ -46,11 +46,16 @@ AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBIT
 
 async def on_message(message: aio_pika.IncomingMessage):
     with message.process():
-        print("[x] %r" % message.body)
-        await sio.emit("logger", data = message.body)
+        data = json.loads(message.body)
+        print("[x] %r" % data)
+        if data["Channel"] == "Log":
+            log = data['Message'] + "\n"
+            await sio.emit("logger", data = log)
+        elif data["Channel"] == "Progress":
+            print(data["Progress"])
+            await sio.emit("progress", data = json.dumps(data))
 
 async def connect_to_rabbit():
-    print("aaaaaaaaaaaaaaaaaaaaa")
     connection = await aio_pika.connect(AMQ_URL,connection_attempts=100)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=1)
@@ -59,11 +64,16 @@ async def connect_to_rabbit():
         RABBITMQ_LOG_CHANNEL, aio_pika.ExchangeType.FANOUT
     )
 
+    progress_exchange = await channel.declare_exchange(
+        RABBITMQ_PROGRESS_CHANNEL, aio_pika.ExchangeType.FANOUT
+    )
+
     # Declaring queue
     queue = await channel.declare_queue(exclusive=True)
 
     # Binding the queue to the exchange
     await queue.bind(logs_exchange)
+    await queue.bind(progress_exchange)
 
     # Start listening the queue with name 'task_queue'
     await queue.consume(on_message)
