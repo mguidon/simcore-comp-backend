@@ -47,20 +47,90 @@ async def start_pipeline(request):
     data = {}
     data['pipeline_name'] = "My Pipeline"
     node_ids = []
-    for _ in range(8):
-        node_ids.append(str(uuid.uuid4()))
 
-    data['nodes'] = node_ids
+    if id == 0:
+        for _ in range(8):
+            node_ids.append(str(uuid.uuid4()))
+    
+        data['nodes'] = node_ids
+    
+        dag_adjacency_list = dict()
+        dag_adjacency_list[node_ids[0]] = [node_ids[2]]
+        dag_adjacency_list[node_ids[1]] = [node_ids[3]]
+        dag_adjacency_list[node_ids[2]] = [node_ids[4]]
+        dag_adjacency_list[node_ids[3]] = [node_ids[4]]
+        dag_adjacency_list[node_ids[4]] = [node_ids[5], node_ids[6]]
+        dag_adjacency_list[node_ids[5]] = [node_ids[7]]
+        dag_adjacency_list[node_ids[6]] = [node_ids[7]]
 
-    dag_adjacency_list = dict()
-    dag_adjacency_list[node_ids[0]] = [node_ids[2]]
-    dag_adjacency_list[node_ids[1]] = [node_ids[3]]
-    dag_adjacency_list[node_ids[2]] = [node_ids[4]]
-    dag_adjacency_list[node_ids[3]] = [node_ids[4]]
-    dag_adjacency_list[node_ids[4]] = [node_ids[5], node_ids[6]]
-    dag_adjacency_list[node_ids[5]] = [node_ids[7]]
-    dag_adjacency_list[node_ids[6]] = [node_ids[7]]
+    elif id == 1:
+        for _ in range(15):
+            node_ids.append(str(uuid.uuid4()))
+    
+        data['nodes'] = node_ids
 
+        dag_adjacency_list = dict()
+        dag_adjacency_list[node_ids[0]] = [node_ids[1]]
+        dag_adjacency_list[node_ids[1]] = [node_ids[2]]
+        dag_adjacency_list[node_ids[2]] = [node_ids[9]]
+        dag_adjacency_list[node_ids[3]] = [node_ids[4]]
+        dag_adjacency_list[node_ids[4]] = [node_ids[5]]
+        dag_adjacency_list[node_ids[5]] = [node_ids[9]]
+        dag_adjacency_list[node_ids[6]] = [node_ids[7]]
+        dag_adjacency_list[node_ids[7]] = [node_ids[8]]
+        dag_adjacency_list[node_ids[8]] = [node_ids[11]]
+        dag_adjacency_list[node_ids[9]] = [node_ids[10]]
+        dag_adjacency_list[node_ids[10]] =  [node_ids[13]]
+        dag_adjacency_list[node_ids[11]] =  [node_ids[12]]
+        dag_adjacency_list[node_ids[12]] =  [node_ids[13]]
+        dag_adjacency_list[node_ids[13]] = [node_ids[14]]
+
+    elif id == 2:
+        for _ in range(42):
+            node_ids.append(str(uuid.uuid4()))
+    
+        data['nodes'] = node_ids
+        dag_adjacency_list = dict()
+        dag_adjacency_list[node_ids[0]] = [node_ids[1]]
+        dag_adjacency_list[node_ids[1]] = [node_ids[2]]
+        dag_adjacency_list[node_ids[2]] = [node_ids[24]]
+        dag_adjacency_list[node_ids[3]] = [node_ids[4]]
+        dag_adjacency_list[node_ids[4]] = [node_ids[5]]
+        dag_adjacency_list[node_ids[5]] = [node_ids[24]]
+        dag_adjacency_list[node_ids[6]] = [node_ids[7]]
+        dag_adjacency_list[node_ids[7]] = [node_ids[8]]
+        dag_adjacency_list[node_ids[8]] = [node_ids[24]]
+        dag_adjacency_list[node_ids[9]] = [node_ids[10]]
+        dag_adjacency_list[node_ids[10]] = [node_ids[11]]
+        dag_adjacency_list[node_ids[11]] = [node_ids[25]]
+        dag_adjacency_list[node_ids[12]] = [node_ids[13]]
+        dag_adjacency_list[node_ids[13]] = [node_ids[14]]
+        dag_adjacency_list[node_ids[14]] = [node_ids[25]]
+        dag_adjacency_list[node_ids[15]] = [node_ids[16]]
+        dag_adjacency_list[node_ids[16]] = [node_ids[17]]
+        dag_adjacency_list[node_ids[17]] = [node_ids[26]]
+        dag_adjacency_list[node_ids[18]] = [node_ids[19]]
+        dag_adjacency_list[node_ids[19]] = [node_ids[20]]
+        dag_adjacency_list[node_ids[20]] = [node_ids[26]]
+        dag_adjacency_list[node_ids[21]] = [node_ids[22]]
+        dag_adjacency_list[node_ids[22]] = [node_ids[23]]
+        dag_adjacency_list[node_ids[23]] = [node_ids[26]]
+        dag_adjacency_list[node_ids[24]] = [node_ids[27]]
+        dag_adjacency_list[node_ids[25]] = [node_ids[28],node_ids[29]]
+        dag_adjacency_list[node_ids[26]] = [node_ids[30],node_ids[31],node_ids[32]]
+        dag_adjacency_list[node_ids[27]] = [node_ids[34]]
+        dag_adjacency_list[node_ids[28]] = [node_ids[34]]
+        dag_adjacency_list[node_ids[29]] = [node_ids[33]]
+        dag_adjacency_list[node_ids[30]] = [node_ids[33]]
+        dag_adjacency_list[node_ids[31]] = [node_ids[36]]
+        dag_adjacency_list[node_ids[32]] = [node_ids[37]]
+        dag_adjacency_list[node_ids[33]] = [node_ids[39]]
+        dag_adjacency_list[node_ids[34]] = [node_ids[35]]
+        dag_adjacency_list[node_ids[35]] = [node_ids[39]]
+        dag_adjacency_list[node_ids[37]] = [node_ids[38]]
+        dag_adjacency_list[node_ids[38]] = [node_ids[39]]
+        dag_adjacency_list[node_ids[39]] = [node_ids[40],node_ids[41]]
+                    
     data['dag'] = dag_adjacency_list
 
      # try to parse data
