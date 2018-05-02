@@ -1,0 +1,44 @@
+FROM node:8.9.2
+
+LABEL maintainer=pcrespov
+
+ENV NPM_CONFIG_LOGLEVEL warn
+
+WORKDIR /home/node/
+
+RUN npm install qxcompiler
+ENV PATH="/home/node/node_modules/.bin/:${PATH}"
+
+WORKDIR /home/node/qxapp
+COPY client-qx/source source
+COPY client-qx/*.json ./
+RUN qx compile
+
+
+#------------------------------------------------------------------------
+FROM python:3
+
+# Selects appropriate 'server-py-*/' folder
+ARG serverdir
+ARG web_outdir
+ARG modelsdir
+ARG models_outdir
+
+ENV SIMCORE_WEB_OUTDIR=$web_outdir
+ENV SIMCORE_WEB_HOSTNAME='0.0.0.0'
+ENV SIMCORE_WEB_PORT=8080
+
+COPY --from=0 /home/node/qxapp/source-output $web_outdir
+
+RUN pip install aiohttp aiohttp-swagger aiohttp-devtools python-socketio requests \
+    networkx sqlalchemy psycopg2 celery sqlalchemy-json aio-pika
+
+WORKDIR /usr/src/app
+
+COPY $serverdir/* ./
+COPY $modelsdir $models_outdir
+
+EXPOSE $SIMCORE_WEB_PORT
+ENV PYTHONPATH=$models_outdir
+#ENTRYPOINT ["/bin/sh", "-c", "adev runserver --host ${SIMCORE_WEB_HOSTNAME} --port ${SIMCORE_WEB_PORT} --app-factory create_app server.py"]
+CMD ["python", "-u", "server.py"]
