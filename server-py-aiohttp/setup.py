@@ -47,11 +47,11 @@ AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBIT
 async def on_message(message: aio_pika.IncomingMessage):
     with message.process():
         data = json.loads(message.body)
-        print("[x] %r" % data)
+        #print("[x] %r" % data)
         if data["Channel"] == "Log":
             await sio.emit("logger", data = json.dumps(data))
         elif data["Channel"] == "Progress":
-            print(data["Progress"])
+            #print(data["Progress"])
             await sio.emit("progress", data = json.dumps(data))
 
 async def connect_to_rabbit():

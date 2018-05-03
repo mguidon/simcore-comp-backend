@@ -283,14 +283,17 @@ def find_entry_point(G):
 def _is_node_ready(task, graph):
     tasks = session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
 
-    print("TASK {} ready? Checking ..".format(task.node_id))
+    print("TASK {} ready? Checking ..".format(task.internal_id))
     for dep_task in tasks:
         job_id = dep_task.job_id
-        if job_id:
-            print("DEPENDS ON {} with job_id {} and stat {}".format(dep_task.node_id, job_id, dep_task.state))
-        if not dep_task.job_id or \
-            not dep_task.state == SUCCESS:
+        if not job_id:
             return False
+        else:
+            print("TASK {} DEPENDS ON {} with stat {}".format(task.internal_id, dep_task.internal_id,dep_task.state))
+            if not dep_task.state == SUCCESS:
+                return False
+    print("TASK {} is ready".format(task.internal_id))
+    
     return True
 
 def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
@@ -299,12 +302,9 @@ def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
     channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
     channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
 
-    task.job_id = task_id
-    task.state = RUNNING
-    session.commit()
     print('Runnning Pipeline {} and node {}'.format(pipeline_id, task.internal_id))
 
-    task_sleep = random.randint(2,8)
+    task_sleep = 4#random.randint(2,8)
     dp = 1.0 / (task_sleep-1)
     for i in range(task_sleep):
         msg = "Slept for {} second[s] out of {}".format(i+1, task_sleep)
@@ -322,6 +322,7 @@ def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
 
     # postprocess
     task.state = SUCCESS
+    session.add(task)
     session.commit()
     connection.close()
     
@@ -331,17 +332,40 @@ def pipeline(self, pipeline_id, node_id=None):
     graph = pipeline.execution_graph
     next_task_nodes = []
     if node_id:
-        task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
+        do_process = True
 
-        # already done or running and happy
-        if task.job_id and task.state == SUCCESS or task.state == RUNNING:
-            print("ALREADY DONE", task.job_id, task.internal_id)
+        #session.begin_nested()
+        #session.execute("LOCK TABLE comp_tasks IN ACCESS EXCLUSIVE MODE;")
+        task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
+        if task.job_id:
             return
+   
+        # already done or running and happy
+        if task.job_id and (task.state == SUCCESS or task.state == RUNNING):
+            print("TASK {} ALREADY DONE".format(task.internal_id))
+            do_process = False
         # not yet ready
         if not _is_node_ready(task, graph):
-            print("NODE {} NOT YET READY".format(task.internal_id))
+            print("TASK {} NOT YET READY".format(task.internal_id))
+            do_process = False
+
+        if do_process:           
+            task.job_id = self.request.id
+            session.add(task)
+            session.commit()
+        else:
             return
 
+        # Oh boy what a hack, I need an atomic insertion
+        time.sleep(3)
+        task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
+        if task.job_id != self.request.id:
+            # somebody else was faster
+            return
+
+        task.state = RUNNING
+        session.add(task)
+        session.commit()
         _process_task_node(self, task, self.request.id, pipeline_id, node_id)
 
         next_task_nodes = list(graph.successors(node_id))
