@@ -1,0 +1,10 @@
+#docker run --name postgres  \
+#    -e POSTGRES_PASSWORD=simcore \
+#    -e POSTGRES_USER=simcore \
+#    -e POSTGRES_DB=simcoredb \
+#    -p 5432:5432 \
+#    -d postgres
+
+docker run --name adminer \
+    -p 8080:8080 \
+    -d adminer
