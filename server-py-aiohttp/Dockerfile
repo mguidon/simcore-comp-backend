@@ -16,8 +16,7 @@
 # 
 # 
 # #------------------------------------------------------------------------
-
-FROM python:3
+FROM python:3.6-alpine
 
 # Selects appropriate 'server-py-*/' folder
 ARG serverdir
@@ -31,8 +30,11 @@ WORKDIR /usr/src/app
 VOLUME ${SIMCORE_WEB_OUTDIR}
 VOLUME /usr/src/app
 
+RUN apk add --no-cache postgresql-dev gcc libc-dev
+
 RUN pip install aiohttp aiohttp-swagger aiohttp-devtools python-socketio requests \
-    networkx sqlalchemy psycopg2 celery sqlalchemy-json aio-pika
+    networkx sqlalchemy psycopg2 celery sqlalchemy-json aio-pika \
+    && pip list --format=columns
 
 EXPOSE $SIMCORE_WEB_PORT
 

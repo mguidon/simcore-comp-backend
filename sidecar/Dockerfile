@@ -1,12 +1,11 @@
-FROM continuumio/miniconda3
+FROM python:3.6-alpine
 LABEL maintainer="Manuel Guidon <guidon@itis.ethz.ch"
 
-RUN conda update conda
-RUN conda install networkx sqlalchemy psycopg2
-RUN conda install -c conda-forge celery
+RUN apk add --no-cache postgresql-dev gcc libc-dev
 
-RUN pip install sqlalchemy-json docker pika
-
+RUN pip install networkx sqlalchemy psycopg2 celery sqlalchemy-json docker pika  \
+    && pip list --format=columns 
+ 
 EXPOSE 8000
 
 WORKDIR /work/sidecar
