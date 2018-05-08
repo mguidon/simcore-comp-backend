@@ -14,8 +14,9 @@ Base.metadata.create_all(engine)
 session = Session()
 
 internal_id = 100
-for node_id in range(20):
-    new_task = ComputationalTask(node_id=node_id, internal_id=internal_id)# submit=datetime.datetime.utcnow())
+for node_id in range(2):
+    new_task = ComputationalTask()
+    #new_task = ComputationalTask(node_id=node_id, internal_id=internal_id)# submit=datetime.datetime.utcnow())
     internal_id = internal_id + 1
     session.add(new_task)
     session.commit()

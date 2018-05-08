@@ -21,7 +21,7 @@ class ComputationalTask(Base):
     internal_id = Column(Integer)
 
     state = Column(Integer, default=UNKNOWN)
-
-    submit = Column(DateTime)
+#
+#    submit = Column(DateTime)
 #    start = Column(DateTime)
 #    end = Column(DateTime)
