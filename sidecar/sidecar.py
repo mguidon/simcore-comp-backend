@@ -269,17 +269,6 @@ def find_entry_point(G):
             result.append(node)
     return result
 
-#@task_prerun.connect
-#def prerun(*args, **kwargs):
-#    global session
-#    session = Session()
-#
-#
-#@task_postrun.connect
-#def postrun(*args, **kwargs):
-#    session.flush()
-#    session.close()
-
 def _is_node_ready(task, graph):
     tasks = session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
 
@@ -336,14 +325,15 @@ def pipeline(self, pipeline_id, node_id=None):
 
         # find the for the current node_id, skip if there is already a job_id around, need further clean up but seems to work
         task = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None)).one()
-        if task == None or task.job_id:
+        if task == None:
             return
    
         # already done or running and happy
         if task.job_id and (task.state == SUCCESS or task.state == RUNNING):
-            print("TASK {} ALREADY DONE".format(task.internal_id))
+            print("TASK {} ALREADY DONE OR RUNNING".format(task.internal_id))
             do_process = False
-        # not yet ready
+
+        # Check if node's dependecies are there
         if not _is_node_ready(task, graph):
             print("TASK {} NOT YET READY".format(task.internal_id))
             do_process = False
