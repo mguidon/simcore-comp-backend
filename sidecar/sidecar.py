@@ -16,7 +16,7 @@ from celery.result import AsyncResult
 from celery.signals import (after_setup_logger, task_failure, task_postrun,
                             task_prerun)
 from celery.states import SUCCESS
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
 
 from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
@@ -334,10 +334,9 @@ def pipeline(self, pipeline_id, node_id=None):
     if node_id:
         do_process = True
 
-        #session.begin_nested()
-        #session.execute("LOCK TABLE comp_tasks IN ACCESS EXCLUSIVE MODE;")
-        task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
-        if task.job_id:
+        # find the for the current node_id, skip if there is already a job_id around, need further clean up but seems to work
+        task = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None)).one()
+        if task == None or task.job_id:
             return
    
         # already done or running and happy
@@ -356,8 +355,6 @@ def pipeline(self, pipeline_id, node_id=None):
         else:
             return
 
-        # Oh boy what a hack, I need an atomic insertion
-        time.sleep(3)
         task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
         if task.job_id != self.request.id:
             # somebody else was faster
