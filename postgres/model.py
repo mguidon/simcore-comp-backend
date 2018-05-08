@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -21,3 +21,7 @@ class ComputationalTask(Base):
     internal_id = Column(Integer)
 
     state = Column(Integer, default=UNKNOWN)
+
+    submit = Column(DateTime)
+#    start = Column(DateTime)
+#    end = Column(DateTime)

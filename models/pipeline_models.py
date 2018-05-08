@@ -1,5 +1,5 @@
 import networkx as nx
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 
 from sqlalchemy_json import MutableJson
@@ -50,3 +50,8 @@ class ComputationalTask(Base):
     input = Column(MutableJson)
     output = Column(MutableJson)
     state = Column(Integer, default=UNKNOWN)
+
+    # utc timestamps for submission/start/end
+    #submit = Column(DateTime)
+    #start = Column(DateTime)
+    #end = Column(DateTime)

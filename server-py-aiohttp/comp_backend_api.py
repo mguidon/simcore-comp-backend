@@ -9,6 +9,7 @@ import asyncio
 import async_timeout
 import uuid
 import json
+import datetime
 
 from setup import *
 
@@ -148,6 +149,7 @@ async def start_pipeline(request):
 
     internal_id = 1
     for node_id in nodes:
+        #new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id, submit=datetime.datetime.utcnow())
         new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id)
         internal_id = internal_id+1
         session.add(new_task)
