@@ -323,8 +323,15 @@ def pipeline(self, pipeline_id, node_id=None):
     if node_id:
         do_process = True
 
-        # find the for the current node_id, skip if there is already a job_id around, need further clean up but seems to work
-        task = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None)).one()
+        # find the for the current node_id, skip if there is already a job_id around
+        query = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None))
+        # Use SELECT FOR UPDATE TO lock the row
+        query.with_for_update()
+        try:
+            task = query.one()
+        except:
+            # no result found, just return
+            return
         if task == None:
             return
    
