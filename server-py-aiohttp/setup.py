@@ -14,7 +14,7 @@ from celery.result import AsyncResult
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from pipeline_models import Base, ComputationalPipeline, ComputationalTask
+from pipeline_models import Base, ComputationalPipeline#, ComputationalTask
 from worker import celery
 
 from async_sio import sio

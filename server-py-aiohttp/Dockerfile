@@ -33,7 +33,7 @@ VOLUME /usr/src/app
 RUN apk add --no-cache postgresql-dev gcc libc-dev
 
 RUN pip install aiohttp aiohttp-swagger aiohttp-devtools python-socketio requests \
-    networkx sqlalchemy psycopg2 celery sqlalchemy-json aio-pika \
+    networkx sqlalchemy psycopg2 celery sqlalchemy-json aio-pika alembic \
     && pip list --format=columns
 
 EXPOSE $SIMCORE_WEB_PORT
