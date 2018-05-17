@@ -52,6 +52,6 @@ class ComputationalTask(Base):
     state = Column(Integer, default=UNKNOWN)
 
     # utc timestamps for submission/start/end
-    #submit = Column(DateTime)
-    #start = Column(DateTime)
-    #end = Column(DateTime)
+    submit = Column(DateTime)
+    start = Column(DateTime)
+    end = Column(DateTime)
