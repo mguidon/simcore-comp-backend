@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -21,6 +21,8 @@ class ComputationalTask(Base):
     internal_id = Column(Integer)
 
     state = Column(Integer, default=UNKNOWN)
+
+    json_data = Column(JSON)
 #
 #    submit = Column(DateTime)
 #    start = Column(DateTime)

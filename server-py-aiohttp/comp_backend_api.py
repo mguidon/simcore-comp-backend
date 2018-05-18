@@ -148,14 +148,17 @@ async def start_pipeline(request):
     pipeline_id = pipeline.pipeline_id
 
     internal_id = 1
+    service = {}
+    service["image_name"] = "masu.speag.com/simcore/services/comp/sleeper"
+    service["image_tag"] = "1.0"
     for node_id in nodes:
         #new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id, submit=datetime.datetime.utcnow())
-        new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id)
+        new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id, service=service)
         internal_id = internal_id+1
         session.add(new_task)
 
     session.commit()
-
+    
     task = celery.send_task('mytasks.pipeline', args=(pipeline_id,), kwargs={})
 
     response = {}

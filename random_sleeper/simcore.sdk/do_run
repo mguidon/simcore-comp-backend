@@ -1,0 +1,18 @@
+#!/bin/bash
+output_file=$OUTPUT_FOLDER/output
+input_file=$INPUT_FOLDER/input
+log_file=$LOG_FOLDER/log.dat
+
+echo $OUTPUT_FOLDER 
+echo $output_file
+echo $INPUT_FOLDER
+echo $input_file
+echo $LOG_FOLDER
+echo $LOG_FOLDER/log.dat
+ls $LOG_FOLDER
+#touch $log_file
+echo "asdfsadfa" >> $log_file
+cat $log_file
+
+
+./sleeper $input_file $output_file >> $log_file

@@ -1,8 +1,6 @@
 import networkx as nx
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
-
-from sqlalchemy_json import MutableJson
 
 Base = declarative_base()
 
@@ -16,7 +14,7 @@ class ComputationalPipeline(Base):
     __tablename__ = 'comp_pipeline'
 
     pipeline_id = Column(Integer, primary_key=True)
-    dag_adjacency_list = Column(MutableJson)
+    dag_adjacency_list = Column(JSON)
     state = Column(String, default=UNKNOWN)
 
     @property
@@ -47,8 +45,9 @@ class ComputationalTask(Base):
     # internal id (better for debugging, nodes from 1 to N)
     internal_id = Column(Integer)
 
-    input = Column(MutableJson)
-    output = Column(MutableJson)
+    input = Column(JSON)
+    output = Column(JSON)
+    service = Column(JSON)
     state = Column(Integer, default=UNKNOWN)
 
     # utc timestamps for submission/start/end

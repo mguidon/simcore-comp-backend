@@ -94,7 +94,7 @@ def parse_input_data(data):
         f.write(json.dumps(data))
                 
 def fetch_container(data):
-    image_name = data['name']
+    image_name = data['image_name']
     image_tag = data['tag']
     client = docker.from_env(version='auto')
     client.login(registry="masu.speag.com/v2", username="z43", password="z43")
@@ -141,7 +141,7 @@ def _bg_job(task, task_id, log_file):
  
 #REDIS     r.set(task_id, "done")
     
-def start_container(task, task_id, docker_image_name, stage, io_env):
+def start_container(task, task_id, docker_image_name, io_env):
     global run_pool
     global io_dirs
 
@@ -149,31 +149,33 @@ def start_container(task, task_id, docker_image_name, stage, io_env):
     
     client = docker.from_env(version='auto')
    
-    task.update_state(task_id=task_id, state='RUNNING')
+    #task.update_state(task_id=task_id, state='RUNNING')
     # touch output file
     log_file = os.path.join(io_dirs['log'], "log.dat")
 
     Path(log_file).touch()
-    fut = pool.submit(_bg_job, task, task_id, log_file)
+    #fut = pool.submit(_bg_job, task, task_id, log_file)
 
-    client.containers.run(docker_image_name, "run", 
-         detach=False, remove=True,
-         volumes = {'workflow_input'  : {'bind' : '/input'}, 
-                    'workflow_output' : {'bind' : '/output'},
-                    'workflow_log'    : {'bind'  : '/log'}},
-         environment=io_env)
+    try:
+        client.containers.run(docker_image_name, "run", 
+             detach=False, remove=True,
+             volumes = {'simcorecompbackend_input'  : {'bind' : '/input'}, 
+                        'simcorecompbackend_output' : {'bind' : '/output'},
+                        'simcorecompbackend_log'    : {'bind'  : '/log'}},
+             environment=io_env)
+    except Exception as e:
+        print(e)
 
-    time.sleep(10)
-    run_pool = False
-    while not fut.done():
-        time.sleep(0.1)
+    #run_pool = False
+    #while not fut.done():
+    #    time.sleep(0.1)
 
     # hash output
-    output_hash = hash_job_output()
+    #output_hash = hash_job_output()
 
-    store_job_output(output_hash)
+    #store_job_output(output_hash)
 
-    return output_hash
+    return# output_hash
 
 def hash_job_output():
     output_hash = hashlib.sha256()
@@ -251,7 +253,7 @@ def do_run(task, task_id, data):
     io_env.append("LOG_FOLDER=/log/"+task_id)
  
   
-    return start_container(task, task_id, docker_image_name, "run", io_env)
+    return start_container(task, task_id, docker_image_name, io_env)
 
 @celery.task(name='mytasks.run', bind=True)
 def run(self, data):
@@ -315,6 +317,57 @@ def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
     session.commit()
     connection.close()
     
+def _process_task_node2(celery_task, task, task_id, pipeline_id, node_id):
+
+    # create directories
+    create_directories(task_id)
+
+    # fetch container
+    image_name = task.service['image_name']
+    image_tag = task.service['image_tag']
+    client = docker.from_env(version='auto')
+    client.login(registry="masu.speag.com/v2", username="z43", password="z43")
+    client.images.pull(image_name, tag=image_tag)
+    docker_image_name = image_name + ":" + image_tag
+
+
+    io_env = []
+    io_env.append("INPUT_FOLDER=/input/"+task_id)
+    io_env.append("OUTPUT_FOLDER=/output/"+task_id)
+    io_env.append("LOG_FOLDER=/log/"+task_id)
+
+    print('Runnning Pipeline {} and node {} from container'.format(pipeline_id, task.internal_id))
+
+    start_container(task, task_id, docker_image_name, io_env)
+
+    #connection = pika.BlockingConnection(parameters)
+    #channel = connection.channel()
+    #channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
+    #channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
+#
+#
+    #task_sleep = 4#random.randint(2,8)
+    #dp = 1.0 / (task_sleep-1)
+    #for i in range(task_sleep):
+    #    msg = "Slept for {} second[s] out of {}".format(i+1, task_sleep)
+    #    log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : msg}
+    #    log_body = json.dumps(log_data)
+#
+    #    progress = i*dp        
+    #    prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
+    #    prog_body = json.dumps(prog_data)
+#
+    #    channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
+    #    channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
+    #    
+    #    time.sleep(1)
+
+    # postprocess
+    task.state = SUCCESS
+    session.add(task)
+    session.commit()
+    #connection.close()
+
 @celery.task(name='mytasks.pipeline', bind=True)
 def pipeline(self, pipeline_id, node_id=None):
     pipeline = session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
@@ -360,7 +413,7 @@ def pipeline(self, pipeline_id, node_id=None):
         task.state = RUNNING
         session.add(task)
         session.commit()
-        _process_task_node(self, task, self.request.id, pipeline_id, node_id)
+        _process_task_node2(self, task, self.request.id, pipeline_id, node_id)
 
         next_task_nodes = list(graph.successors(node_id))
     else:
