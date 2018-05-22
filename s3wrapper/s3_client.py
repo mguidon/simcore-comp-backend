@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta
 
 from minio import Minio
 from minio.error import ResponseError
@@ -148,3 +149,12 @@ class S3Client(object):
             print("Object {} in bucket {} matches query {}".format(r.object_name, r.bucket_name, query))
 
         return results
+
+    def create_presigned_put_url(self, bucket_name, object_name, days_valid=3):
+        try:
+            return self.client.presigned_put_object(bucket_name, object_name,
+                expires=timedelta(days=days_valid))
+                
+        except ResponseError as err:
+            print(err)
+            return ""

@@ -3,6 +3,7 @@ import os
 import uuid
 
 import pytest
+import urllib3
 
 import s3wrapper
 from s3wrapper.s3_client import S3Client
@@ -21,9 +22,9 @@ def s3_client():
 def bucket(s3_client, request):
     bucket_name = "simcore-test"
     s3_client.create_bucket(bucket_name, delete_contents_if_exists=True)
-    def fin():
-        s3_client.remove_bucket(bucket_name, delete_contents=True)
-    request.addfinalizer(fin)
+    #def fin():
+    #    s3_client.remove_bucket(bucket_name, delete_contents=True)
+   # request.addfinalizer(fin)
     return bucket_name
 
 @pytest.fixture(scope="function")
@@ -117,3 +118,22 @@ def test_search(s3_client, bucket, text_files):
     query = "dat*"
     results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
     assert len(results) == 9
+
+def test_presigned_put(s3_client, bucket, text_files):
+    filepath = text_files(1)[0]
+    object_name = "my_file"
+    url = s3_client.create_presigned_put_url(bucket, object_name)
+    http = urllib3.PoolManager()
+    with open(filepath, 'rb') as fp:
+        data = fp.read()
+        response = http.urlopen('PUT', url, data)
+        assert response.status == 200
+
+    filepath2 = filepath + "."
+    assert s3_client.download_file(bucket, object_name, filepath2)
+    #assert filecmp.cmp(filepath2, filepath)
+
+
+
+
+
