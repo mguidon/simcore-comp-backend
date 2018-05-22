@@ -80,7 +80,7 @@ def create_directories(task_id):
         else:
             delete_contents(dir)
 
-def _bg_job(task, task_id, log_file):
+def _bg_job(task, log_file):
     connection = pika.BlockingConnection(parameters)
 
     channel = connection.channel()
@@ -123,7 +123,7 @@ def start_container(task, task_id, docker_image_name, io_env):
     log_file = os.path.join(io_dirs['log'], "log.dat")
 
     Path(log_file).touch()
-    fut = pool.submit(_bg_job, task, task_id, log_file)
+    fut = pool.submit(_bg_job, task, log_file)
 
     try:
         client.containers.run(docker_image_name, "run", 
@@ -143,13 +143,29 @@ def start_container(task, task_id, docker_image_name, io_env):
     # hash output
     #output_hash = hash_job_output()
 
-    #store_job_output(output_hash)
+    process_task_output(task)
 
     task.state = SUCCESS
     session.add(task)
     session.commit()
 
     return# output_hash
+
+def process_task_output(task):
+    directory = io_dirs['output']
+    data = {}
+    if not os.path.exists (directory):
+        return
+    try:
+        output_file_list = []
+        for root, dirs, files in os.walk(directory):
+            for names in files:
+                filepath = os.path.join(root, names)
+                output_file_list.append(filepath)
+    except:
+        import traceback
+        traceback.print_exc()
+        return -2
 
 def hash_job_output():
     output_hash = hashlib.sha256()
@@ -183,42 +199,6 @@ def hash_job_output():
 
     return output_hash.hexdigest() 
 
-def store_job_output(output_hash):
-    pass
-#MONGO    db_client = MongoClient("mongodb://database:27017/")
-#MONGO    output_database = db_client.output_database
-#MONGO    output_collections = output_database.output_collections
-#MONGO    file_db = db_client.file_db
-#MONGO    fs = gridfs.GridFS(file_db)
-#MONGO    directory = io_dirs['output']
-#MONGO    data = {}
-#MONGO    if not os.path.exists (directory):
-#MONGO        return
-#MONGO    try:
-#MONGO        output_file_list = []
-#MONGO        ids = []
-#MONGO        for root, dirs, files in os.walk(directory):
-#MONGO            for names in files:
-#MONGO                filepath = os.path.join(root,names)
-#MONGO                file_id = fs.put(open(filepath,'rb'))
-#MONGO                ids.append(file_id)
-#MONGO                with open(filepath, 'rb') as f:
-#MONGO                    file_data = f.read()
-#MONGO                    current = { 'filename' : names, 'contents' : file_data }
-#MONGO                    output_file_list.append(current)
-#MONGO
-#MONGO        data["output"] = output_file_list
-#MONGO        data["_hash"] = output_hash
-#MONGO        data["ids"] = ids
-#MONGO
-#MONGO        output_collections.insert_one(data)
-#MONGO
-#MONGO    except:
-#MONGO        import traceback
-#MONGO        # Print the stack traceback
-#MONGO        traceback.print_exc()
-#MONGO        return -2
-
 def find_entry_point(G):
     result = []
     for node in G.nodes:
@@ -242,9 +222,9 @@ def _is_node_ready(task, graph):
     
     return True
     
-def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
+def _process_task_node(task, celery_task_id, pipeline_id, node_id):
     # create directories
-    create_directories(task_id)
+    create_directories(celery_task_id)
 
     # fetch container
     image_name = task.service['image_name']
@@ -256,13 +236,13 @@ def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
 
 
     io_env = []
-    io_env.append("INPUT_FOLDER=/input/"+task_id)
-    io_env.append("OUTPUT_FOLDER=/output/"+task_id)
-    io_env.append("LOG_FOLDER=/log/"+task_id)
+    io_env.append("INPUT_FOLDER=/input/"+celery_task_id)
+    io_env.append("OUTPUT_FOLDER=/output/"+celery_task_id)
+    io_env.append("LOG_FOLDER=/log/"+celery_task_id)
 
     print('Runnning Pipeline {} and node {} from container'.format(pipeline_id, task.internal_id))
 
-    start_container(task, task_id, docker_image_name, io_env)
+    start_container(task, celery_task_id, docker_image_name, io_env)
 
     # postprocess
     task.state = SUCCESS
@@ -314,7 +294,8 @@ def pipeline(self, pipeline_id, node_id=None):
         task.state = RUNNING
         session.add(task)
         session.commit()
-        _process_task_node(self, task, self.request.id, pipeline_id, node_id)
+        celery_task_id = task.job_id
+        _process_task_node(task, celery_task_id, pipeline_id, node_id)
 
         next_task_nodes = list(graph.successors(node_id))
     else:
