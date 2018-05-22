@@ -80,48 +80,13 @@ def create_directories(task_id):
         else:
             delete_contents(dir)
 
-
-def parse_input_data(data):
-    global io_dirs 
-    for d in data:
-        if "type" in d and d["type"] == "url":
-            r = requests.get(d["url"])
-            filename = os.path.join(io_dirs['input'], d["name"])
-            with open(filename, 'wb') as f:
-                f.write(r.content)
-    filename = os.path.join(io_dirs['input'], 'input.json')
-    with open(filename, 'w') as f:
-        f.write(json.dumps(data))
-                
-def fetch_container(data):
-    image_name = data['image_name']
-    image_tag = data['tag']
-    client = docker.from_env(version='auto')
-    client.login(registry="masu.speag.com/v2", username="z43", password="z43")
-    client.images.pull(image_name, tag=image_tag)
-    docker_image_name = image_name + ":" + image_tag
-    return docker_image_name
-
-def prepare_input_and_container(data):
-    docker_image_name = ""
-    if 'input' in data:
-        parse_input_data(data['input'])
-
-    if 'container' in data:
-        docker_image_name = fetch_container(data['container'])
-
-    return docker_image_name
-
 def _bg_job(task, task_id, log_file):
-    log_key = task_id + ":log"
-    prog_key = task_id + ":progress"
+    connection = pika.BlockingConnection(parameters)
 
-    # not sure whether we have to check for existence
-#REDIS     if not r.exists(log_key):
-#REDIS         r.rpush(log_key, 'This is gonna be the log')
-#REDIS     if not r.exists(prog_key):
-#REDIS         r.rpush(prog_key, 'This is gonna be the progress')
-    
+    channel = connection.channel()
+    channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
+    channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
+
     with open(log_file) as file_:
         # Go to the end of file
         file_.seek(0,2)
@@ -133,13 +98,18 @@ def _bg_job(task, task_id, log_file):
                 time.sleep(1)
             else:
                 clean_line = line.strip()
-                if clean_line.startswith("[Progress]"):
-                    percent = clean_line.lstrip("[Progress]").rstrip("%").strip()
-#REDIS                     r.rpush(prog_key, percent.encode('utf-8'))
-#REDIS                 else:
-#REDIS                     r.rpush(log_key, clean_line.encode('utf-8'))
- 
-#REDIS     r.set(task_id, "done")
+                if clean_line.lower().startswith("[progress]"):
+                    progress = clean_line.lower().lstrip("[progress]").rstrip("%").strip()
+                    prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
+                    prog_body = json.dumps(prog_data)
+                    channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
+                else:
+                    log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : clean_line}
+                    log_body = json.dumps(log_data)
+                    channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
+
+        
+    connection.close()
     
 def start_container(task, task_id, docker_image_name, io_env):
     global run_pool
@@ -148,13 +118,12 @@ def start_container(task, task_id, docker_image_name, io_env):
     run_pool = True
     
     client = docker.from_env(version='auto')
-   
-    #task.update_state(task_id=task_id, state='RUNNING')
+
     # touch output file
     log_file = os.path.join(io_dirs['log'], "log.dat")
 
     Path(log_file).touch()
-    #fut = pool.submit(_bg_job, task, task_id, log_file)
+    fut = pool.submit(_bg_job, task, task_id, log_file)
 
     try:
         client.containers.run(docker_image_name, "run", 
@@ -166,14 +135,19 @@ def start_container(task, task_id, docker_image_name, io_env):
     except Exception as e:
         print(e)
 
-    #run_pool = False
-    #while not fut.done():
-    #    time.sleep(0.1)
+    time.sleep(1)
+    run_pool = False
+    while not fut.done():
+        time.sleep(0.1)
 
     # hash output
     #output_hash = hash_job_output()
 
     #store_job_output(output_hash)
+
+    task.state = SUCCESS
+    session.add(task)
+    session.commit()
 
     return# output_hash
 
@@ -245,25 +219,6 @@ def store_job_output(output_hash):
 #MONGO        traceback.print_exc()
 #MONGO        return -2
 
-def do_run(task, task_id, data):
-    docker_image_name = prepare_input_and_container(data)
-    io_env = []
-    io_env.append("INPUT_FOLDER=/input/"+task_id)
-    io_env.append("OUTPUT_FOLDER=/output/"+task_id)
-    io_env.append("LOG_FOLDER=/log/"+task_id)
- 
-  
-    return start_container(task, task_id, docker_image_name, io_env)
-
-@celery.task(name='mytasks.run', bind=True)
-def run(self, data):
-    task = self
-    task_id = task.request.id
-
-    create_directories(task_id)
-    
-    return str(do_run(task, task_id, data))
-
 def find_entry_point(G):
     result = []
     for node in G.nodes:
@@ -286,39 +241,8 @@ def _is_node_ready(task, graph):
     print("TASK {} is ready".format(task.internal_id))
     
     return True
-
-def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
-    connection = pika.BlockingConnection(parameters)
-    channel = connection.channel()
-    channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
-    channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
-
-    print('Runnning Pipeline {} and node {}'.format(pipeline_id, task.internal_id))
-
-    task_sleep = 4#random.randint(2,8)
-    dp = 1.0 / (task_sleep-1)
-    for i in range(task_sleep):
-        msg = "Slept for {} second[s] out of {}".format(i+1, task_sleep)
-        log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : msg}
-        log_body = json.dumps(log_data)
-
-        progress = i*dp        
-        prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
-        prog_body = json.dumps(prog_data)
-
-        channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
-        channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
-        
-        time.sleep(1)
-
-    # postprocess
-    task.state = SUCCESS
-    session.add(task)
-    session.commit()
-    connection.close()
     
-def _process_task_node2(celery_task, task, task_id, pipeline_id, node_id):
-
+def _process_task_node(celery_task, task, task_id, pipeline_id, node_id):
     # create directories
     create_directories(task_id)
 
@@ -340,33 +264,10 @@ def _process_task_node2(celery_task, task, task_id, pipeline_id, node_id):
 
     start_container(task, task_id, docker_image_name, io_env)
 
-    #connection = pika.BlockingConnection(parameters)
-    #channel = connection.channel()
-    #channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
-    #channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
-#
-#
-    #task_sleep = 4#random.randint(2,8)
-    #dp = 1.0 / (task_sleep-1)
-    #for i in range(task_sleep):
-    #    msg = "Slept for {} second[s] out of {}".format(i+1, task_sleep)
-    #    log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : msg}
-    #    log_body = json.dumps(log_data)
-#
-    #    progress = i*dp        
-    #    prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
-    #    prog_body = json.dumps(prog_data)
-#
-    #    channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
-    #    channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
-    #    
-    #    time.sleep(1)
-
     # postprocess
     task.state = SUCCESS
     session.add(task)
     session.commit()
-    #connection.close()
 
 @celery.task(name='mytasks.pipeline', bind=True)
 def pipeline(self, pipeline_id, node_id=None):
@@ -413,7 +314,7 @@ def pipeline(self, pipeline_id, node_id=None):
         task.state = RUNNING
         session.add(task)
         session.commit()
-        _process_task_node2(self, task, self.request.id, pipeline_id, node_id)
+        _process_task_node(self, task, self.request.id, pipeline_id, node_id)
 
         next_task_nodes = list(graph.successors(node_id))
     else:

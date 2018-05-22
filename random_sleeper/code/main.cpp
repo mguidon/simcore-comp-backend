@@ -39,7 +39,8 @@ int main(int argc, char const *argv[])
         std::string progress = "[PROGRESS]" + std::to_string((i+1)*dp);
         std::cout << progress << std::endl;
     }
-    std::cout << "...I am done with sleeping" << std::endl;
+    // seems we have to flush here
+    std::cout << "...I am done with sleeping" << std::endl << std::flush;
 
     if (!output_filename.empty())
     {
