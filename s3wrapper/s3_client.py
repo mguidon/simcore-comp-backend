@@ -66,12 +66,14 @@ class S3Client(object):
     def upload_file(self, bucket_name, object_name, filepath, metadata=None):
         """ Note
 
-            metadata are special, key and value must be strings
-            and the keys are case insensitive. This is what gets returned
+            metadata are special, you need to use the 
+            'X-Amz-Meta' standard, i.e:
+                - key and value must be strings
+                - and the keys are case insensitive:
 
-            key1 -- > Key1
-            key_one --> Key_one
-            key-one --> Key-One
+                    key1 -- > Key1
+                    key_one --> Key_one
+                    key-one --> Key-One
 
         """
         try:

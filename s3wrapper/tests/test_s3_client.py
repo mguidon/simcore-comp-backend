@@ -64,8 +64,14 @@ def test_file_upload_meta_data(s3_client, text_files):
     assert metadata2["Node_id"] == str(id)
     assert metadata2["Boom-Boom"] == str(42.0)
 
-   
+def test_sub_folders(s3_client, text_files):
+    bucket_name = "simcore-test-sub"
+    s3_client.create_bucket(bucket_name, delete_contents=True)
+    bucket_sub_folder = str(uuid.uuid4())
 
-
-
-    
+    filepaths = text_files(3)
+    counter = 1
+    for f in filepaths:
+        object_name = bucket_sub_folder + "/" + str(counter)
+        assert s3_client.upload_file(bucket_name, object_name, f)
+        counter += 1
