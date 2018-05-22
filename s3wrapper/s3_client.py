@@ -1,6 +1,8 @@
 from minio import Minio
 from minio.error import ResponseError
 
+import re
+
 class S3Client(object):
     """ Wrapper around minio
     """
@@ -126,5 +128,23 @@ class S3Client(object):
             return False
         return True
 
+    def search(self, bucket_name, query, recursive=True, include_metadata=False):
+        results = []
+        objs = self.list_objects(bucket_name, recursive=recursive)
+
+        _query = re.compile(query, re.IGNORECASE)
+
+        for obj in objs:
+            if _query.search(obj.object_name):
+                results.append(obj)
+            if include_metadata:
+                metadata = self.get_metadata(bucket_name, obj.object_name)
+                for key in metadata.keys():
+                    if _query.search(key) or _query.search(metadata[key]):
+                        results.append(obj)
+
+        for r in results:
+            print("Object {} in bucket {} matches query {}".format(r.object_name, r.bucket_name, query))
+        return results
 
 

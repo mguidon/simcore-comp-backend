@@ -9,9 +9,9 @@ from s3wrapper.s3_client import S3Client
 
 @pytest.fixture(scope="module")
 def s3_client():
-    hostname = ''
-    access_key=''
-    secret_key=''
+    hostname = os.getenv("MINIO_HOST")
+    access_key= os.getenv("MINIO_ACCESS_KEY")
+    secret_key= os.getenv("MINIO_SECRET_KEY")
     secure=False
     s3_client = S3Client(hostname, access_key, secret_key, secure)
     return s3_client
@@ -29,7 +29,6 @@ def text_files(tmpdir_factory):
 
         return filepaths
     return _create_files
-
 
 def test_create_remove_bucket(s3_client):
     bucket_name = "simcore-test"
@@ -75,3 +74,37 @@ def test_sub_folders(s3_client, text_files):
         object_name = bucket_sub_folder + "/" + str(counter)
         assert s3_client.upload_file(bucket_name, object_name, f)
         counter += 1
+
+def test_search(s3_client, text_files):
+    bucket_name = "simcore-test-search"
+    s3_client.create_bucket(bucket_name, delete_contents=True)
+    
+    metadata = [ {'User' : 'alpha'}, {'User' : 'beta' }, {'User' : 'gamma'}]
+
+    for i in range(3):
+        bucket_sub_folder = "Folder"+ str(i+1)
+
+        filepaths = text_files(3)
+        counter = 0
+        for f in filepaths:
+            object_name = bucket_sub_folder + "/" + "Data" + str(counter)
+            assert s3_client.upload_file(bucket_name, object_name, f, metadata=metadata[counter])
+            counter += 1
+
+    query = "DATA1"
+    results = s3_client.search(bucket_name, query, recursive = False, include_metadata=False)
+    assert len(results) == 0
+
+    results = s3_client.search(bucket_name, query, recursive = True, include_metadata=False)
+    assert len(results) == 3
+
+    query = "alpha"
+    results = s3_client.search(bucket_name, query, recursive = True, include_metadata=True)
+    assert len(results) == 3
+
+    query = "dat*"
+    results = s3_client.search(bucket_name, query, recursive = True, include_metadata=False)
+    assert len(results) == 9
+
+    assert 0
+
