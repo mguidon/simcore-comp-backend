@@ -29,7 +29,7 @@ def bucket(s3_client, request):
 def text_files(tmpdir_factory):
     def _create_files(N):
         filepaths = []
-        for i in range(N):
+        for _i in range(N):
             name = str(uuid.uuid4())
             filepath = os.path.normpath(str(tmpdir_factory.mktemp('data').join(name + ".txt")))
             with open(filepath, 'w') as fout:
