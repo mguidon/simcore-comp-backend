@@ -3,7 +3,7 @@ LABEL maintainer="Manuel Guidon <guidon@itis.ethz.ch"
 
 RUN apk add --no-cache postgresql-dev gcc libc-dev
 
-RUN pip install networkx sqlalchemy psycopg2 celery sqlalchemy-json docker pika  \
+RUN pip install networkx sqlalchemy psycopg2 celery sqlalchemy-json docker pika minio  \
     && pip list --format=columns 
  
 EXPOSE 8000
@@ -14,5 +14,5 @@ WORKDIR /work/sidecar
 # RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # NO clue why this does not work without explicitly specifying
-ENV PYTHONPATH="/work/models"
+ENV PYTHONPATH="/work/models:/work/s3wrapper"
 ENTRYPOINT celery -A sidecar worker -c 2 --loglevel=info

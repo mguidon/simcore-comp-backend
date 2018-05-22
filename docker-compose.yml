@@ -47,6 +47,7 @@ services:
       - log:/log
       - ./sidecar:/work/sidecar
       - ./models:/work/models
+      - ./s3wrapper:/work/s3wrapper
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"
@@ -55,6 +56,10 @@ services:
     environment:
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
       - rabbit
   postgres:

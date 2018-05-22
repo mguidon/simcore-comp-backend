@@ -12,17 +12,17 @@ int main(int argc, char const *argv[])
 
     if (argc>1)
     {
-    //    input_filename = std::string(argv[1]);
+        input_filename = std::string(argv[1]);
     }
 
     if (argc>2)
     {
-     //   output_filename = std::string(argv[2]);
+        output_filename = std::string(argv[2]);
     }
 
     int N = 4;
     
-    if (!input_filename.empty())
+    if (!input_filename.empty() && std::ifstream(input_filename))
     {
         std::fstream input(input_filename, std::ios_base::in);
         input >> N;

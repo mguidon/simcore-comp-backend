@@ -10,17 +10,17 @@ from s3wrapper.s3_client import S3Client
 
 @pytest.fixture(scope="module")
 def s3_client():
-    hostname = os.getenv("MINIO_HOST")
-    access_key= os.getenv("MINIO_ACCESS_KEY")
-    secret_key= os.getenv("MINIO_SECRET_KEY")
-    secure=False
-    s3_client = S3Client(hostname, access_key, secret_key, secure)
+    endpoint = os.getenv("MINIO_HOST")
+    access_key = os.getenv("MINIO_ACCESS_KEY")
+    secret_key = os.getenv("MINIO_SECRET_KEY")
+    secure = False
+    s3_client = S3Client(endpoint, access_key, secret_key, secure)
     return s3_client
 
 @pytest.fixture(scope="module")
 def bucket(s3_client, request):
     bucket_name = "simcore-test"
-    s3_client.create_bucket(bucket_name, delete_contents=True)
+    s3_client.create_bucket(bucket_name, delete_contents_if_exists=True)
     def fin():
         s3_client.remove_bucket(bucket_name, delete_contents=True)
     request.addfinalizer(fin)
@@ -91,8 +91,6 @@ def test_sub_folders(s3_client, bucket, text_files):
         counter += 1
 
 def test_search(s3_client, bucket, text_files):
-    s3_client.create_bucket(bucket, delete_contents=True)
-    
     metadata = [ {'User' : 'alpha'}, {'User' : 'beta' }, {'User' : 'gamma'}]
 
     for i in range(3):

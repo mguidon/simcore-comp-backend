@@ -22,6 +22,8 @@ from sqlalchemy.orm import sessionmaker
 from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
                              ComputationalPipeline, ComputationalTask)
 
+from s3_client import S3Client
+
 env = os.environ
 RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
 RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
@@ -59,6 +61,15 @@ db = create_engine(DB_URL, client_encoding='utf8')
 
 Session = sessionmaker(db)
 session = Session()
+
+
+S3_ENDPOINT = env.get("S3_ENDPOINT", "")
+S3_ACCESS_KEY = env.get("S3_ACCESS_KEY", "")
+S3_SECRET_KEY = env.get("S3_SECRET_KEY", "")
+S3_BUCKET_NAME = env.get("S3_BUCKET_NAME", "")
+
+s3_client = S3Client(endpoint=S3_ENDPOINT, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY)
+s3_client.create_bucket(S3_BUCKET_NAME)
 
 def delete_contents(folder):
     for the_file in os.listdir(folder):
@@ -153,15 +164,16 @@ def start_container(task, task_id, docker_image_name, io_env):
 
 def process_task_output(task):
     directory = io_dirs['output']
-    data = {}
-    if not os.path.exists (directory):
+    if not os.path.exists(directory):
         return
     try:
-        output_file_list = []
         for root, dirs, files in os.walk(directory):
-            for names in files:
-                filepath = os.path.join(root, names)
-                output_file_list.append(filepath)
+            for name in files:
+                filepath = os.path.join(root, name)
+                object_name = str(task.pipeline_id) + "/" + task.job_id + "/" + name
+                print("AAAAAAAAAAAAA upload {} as {}".format(filepath, object_name))
+                s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
+        
     except:
         import traceback
         traceback.print_exc()

@@ -8,11 +8,11 @@ class S3Client(object):
     """ Wrapper around minio
     """
     
-    def __init__(self, hostname, access_key=None, secret_key=None, secure=False):
+    def __init__(self, endpoint, access_key=None, secret_key=None, secure=False):
         self.__metadata_prefix = "x-amz-meta-"
         self.client = None
         try:
-            self.client = Minio(hostname,
+            self.client = Minio(endpoint,
                 access_key=access_key,
                 secret_key=secret_key,
                 secure=secure)
@@ -28,11 +28,11 @@ class S3Client(object):
         self.remove_objects(bucket_name, to_del)
 
 
-    def create_bucket(self, bucket_name, delete_contents=False):
+    def create_bucket(self, bucket_name, delete_contents_if_exists=False):
         try:
             if not self.exists_bucket(bucket_name):
                  self.client.make_bucket(bucket_name)       
-            elif delete_contents:
+            elif delete_contents_if_exists:
                 if self.__remove_objects_recursively(bucket_name):
                     self.remove_bucket(bucket_name)
         except ResponseError as err:
