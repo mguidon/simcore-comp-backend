@@ -9,9 +9,9 @@ from s3wrapper.s3_client import S3Client
 
 @pytest.fixture(scope="module")
 def s3_client():
-    hostname = 'osparc01.speag.com:10001'
-    access_key='pNPLM9cpcvweLRVRXfRN'
-    secret_key='JxkgxhmvuXpbMxnxeahyCHT4bMUXttAp'
+    hostname = ''
+    access_key=''
+    secret_key=''
     secure=False
     s3_client = S3Client(hostname, access_key, secret_key, secure)
     return s3_client
