@@ -171,7 +171,6 @@ def process_task_output(task):
             for name in files:
                 filepath = os.path.join(root, name)
                 object_name = str(task.pipeline_id) + "/" + task.job_id + "/" + name
-                print("AAAAAAAAAAAAA upload {} as {}".format(filepath, object_name))
                 s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
         
     except:
