@@ -1,7 +1,8 @@
+import re
+
 from minio import Minio
 from minio.error import ResponseError
 
-import re
 
 class S3Client(object):
     """ Wrapper around minio
@@ -147,5 +148,3 @@ class S3Client(object):
             print("Object {} in bucket {} matches query {}".format(r.object_name, r.bucket_name, query))
 
         return results
-
-

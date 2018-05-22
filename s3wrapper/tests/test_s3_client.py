@@ -1,7 +1,8 @@
+import filecmp
 import os
 import uuid
+
 import pytest
-import filecmp
 
 import s3wrapper
 from s3wrapper.s3_client import S3Client
@@ -118,4 +119,3 @@ def test_search(s3_client, bucket, text_files):
     query = "dat*"
     results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
     assert len(results) == 9
-
