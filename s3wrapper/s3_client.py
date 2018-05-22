@@ -45,7 +45,7 @@ class S3Client(object):
             if self.exists_bucket(bucket_name):
                 if delete_contents:
                     self.__remove_objects_recursively(bucket_name)
-                self.client.remove_bucket(bucket_name)
+                    self.client.remove_bucket(bucket_name)
         except ResponseError as err:
             print(err)
             return False
@@ -145,6 +145,7 @@ class S3Client(object):
 
         for r in results:
             print("Object {} in bucket {} matches query {}".format(r.object_name, r.bucket_name, query))
+
         return results
 
 

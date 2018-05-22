@@ -16,6 +16,15 @@ def s3_client():
     s3_client = S3Client(hostname, access_key, secret_key, secure)
     return s3_client
 
+@pytest.fixture(scope="module")
+def bucket(s3_client, request):
+    bucket_name = "simcore-test"
+    s3_client.create_bucket(bucket_name, delete_contents=True)
+    def fin():
+        s3_client.remove_bucket(bucket_name, delete_contents=True)
+    request.addfinalizer(fin)
+    return bucket_name
+
 @pytest.fixture(scope="function")
 def text_files(tmpdir_factory):
     def _create_files(N):
@@ -37,47 +46,51 @@ def test_create_remove_bucket(s3_client):
     s3_client.remove_bucket(bucket_name, delete_contents=True)
     assert not s3_client.exists_bucket(bucket_name)
 
-def test_file_upload_download(s3_client, text_files):
+def test_create_remove_bucket_with_contents(s3_client, text_files):
     bucket_name = "simcore-test"
-    s3_client.create_bucket(bucket_name, delete_contents=True)
+    s3_client.create_bucket(bucket_name)
+    assert s3_client.exists_bucket(bucket_name)
+    object_name = "dummy"
+    filepath = text_files(1)[0]    
+    assert s3_client.upload_file(bucket_name, object_name, filepath)
+    assert s3_client.remove_bucket(bucket_name, delete_contents=False)
+    assert s3_client.exists_bucket(bucket_name)    
+    s3_client.remove_bucket(bucket_name, delete_contents=True)
+    assert not s3_client.exists_bucket(bucket_name)
+
+def test_file_upload_download(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "1"
-    assert s3_client.upload_file(bucket_name, object_name, filepath)
+    assert s3_client.upload_file(bucket, object_name, filepath)
     filepath2 = filepath + "."
-    assert s3_client.download_file(bucket_name, object_name ,filepath2)
+    assert s3_client.download_file(bucket, object_name ,filepath2)
     assert filecmp.cmp(filepath2, filepath)
 
-def test_file_upload_meta_data(s3_client, text_files):
-    bucket_name = "simcore-test"
-    s3_client.create_bucket(bucket_name, delete_contents=True)
+def test_file_upload_meta_data(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "1"
     id = uuid.uuid4()
     metadata = {'user' : 'guidon', 'node_id' : str(id), 'boom-boom' : str(42.0)}
 
-    assert s3_client.upload_file(bucket_name, object_name, filepath, metadata=metadata)
+    assert s3_client.upload_file(bucket, object_name, filepath, metadata=metadata)
 
-    metadata2 = s3_client.get_metadata(bucket_name, object_name)
+    metadata2 = s3_client.get_metadata(bucket, object_name)
     print (metadata2)
     assert metadata2["User"] == 'guidon'
     assert metadata2["Node_id"] == str(id)
     assert metadata2["Boom-Boom"] == str(42.0)
 
-def test_sub_folders(s3_client, text_files):
-    bucket_name = "simcore-test-sub"
-    s3_client.create_bucket(bucket_name, delete_contents=True)
+def test_sub_folders(s3_client, bucket, text_files):
     bucket_sub_folder = str(uuid.uuid4())
-
     filepaths = text_files(3)
     counter = 1
     for f in filepaths:
         object_name = bucket_sub_folder + "/" + str(counter)
-        assert s3_client.upload_file(bucket_name, object_name, f)
+        assert s3_client.upload_file(bucket, object_name, f)
         counter += 1
 
-def test_search(s3_client, text_files):
-    bucket_name = "simcore-test-search"
-    s3_client.create_bucket(bucket_name, delete_contents=True)
+def test_search(s3_client, bucket, text_files):
+    s3_client.create_bucket(bucket, delete_contents=True)
     
     metadata = [ {'User' : 'alpha'}, {'User' : 'beta' }, {'User' : 'gamma'}]
 
@@ -88,23 +101,21 @@ def test_search(s3_client, text_files):
         counter = 0
         for f in filepaths:
             object_name = bucket_sub_folder + "/" + "Data" + str(counter)
-            assert s3_client.upload_file(bucket_name, object_name, f, metadata=metadata[counter])
+            assert s3_client.upload_file(bucket, object_name, f, metadata=metadata[counter])
             counter += 1
 
     query = "DATA1"
-    results = s3_client.search(bucket_name, query, recursive = False, include_metadata=False)
+    results = s3_client.search(bucket, query, recursive = False, include_metadata=False)
     assert len(results) == 0
 
-    results = s3_client.search(bucket_name, query, recursive = True, include_metadata=False)
+    results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
     assert len(results) == 3
 
     query = "alpha"
-    results = s3_client.search(bucket_name, query, recursive = True, include_metadata=True)
+    results = s3_client.search(bucket, query, recursive = True, include_metadata=True)
     assert len(results) == 3
 
     query = "dat*"
-    results = s3_client.search(bucket_name, query, recursive = True, include_metadata=False)
+    results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
     assert len(results) == 9
-
-    assert 0
 
