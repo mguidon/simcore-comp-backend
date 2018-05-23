@@ -71,149 +71,15 @@ S3_BUCKET_NAME = env.get("S3_BUCKET_NAME", "")
 s3_client = S3Client(endpoint=S3_ENDPOINT, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY)
 s3_client.create_bucket(S3_BUCKET_NAME)
 
-class Sidecar(object):
-    def __init__(self):
-        self._pika_credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-        self._pika_parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, 
-            port=RABBITMQ_PORT, credentials=self._pika_credentials, connection_attempts=100)
-
-        self.task = None
-        self.docker_client = docker.from_env(version='auto')
-        self.docker_registry = "masu.speag.com/v2"
-        self.docker_registry_user = "z43"
-        self.docker_registry_pwd = "z43"
-
-    def _delete_contents(self, folder):
-        for file in os.listdir(folder):
-            file_path = os.path.join(folder, file)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path): shutil.rmtree(file_path)
-            except Exception as e:
-                print(e)
-
-    def _create_shared_folders(self):
-        for folder in [self.shared_input_folder, self.shared_log_folder, self.shared_output_folder]:
-            if not os.path.exists(folder):
-                os.makedirs(folder)
-            else:
-                self._delete_contents(folder)
-
-    def _pull_image(self):
-        self.docker_client.login(registry=self.docker_registry,
-            username=self.docker_registry_user, password=self.docker_registry_pwd)
-        
-        self.docker_client.images.pull(self.docker_image_name, tag=self.docker_image_tag)
-
-    def _bg_job(self, task, log_file):
-        connection = pika.BlockingConnection(self._pika_parameters)
-
-        channel = connection.channel()
-        channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
-        channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
-
-        with open(log_file) as file_:
-            # Go to the end of file
-            file_.seek(0,2)
-            while self.run_pool:
-                curr_position = file_.tell()
-                line = file_.readline()
-                if not line:
-                    file_.seek(curr_position)
-                    time.sleep(1)
-                else:
-                    clean_line = line.strip()
-                    if clean_line.lower().startswith("[progress]"):
-                        progress = clean_line.lower().lstrip("[progress]").rstrip("%").strip()
-                        prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
-                        prog_body = json.dumps(prog_data)
-                        channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
-                    else:
-                        log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : clean_line}
-                        log_body = json.dumps(log_data)
-                        channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
-
-
-        connection.close()
-
-    def _process_task_output(self):
-        directory = self.shared_output_folder
-        if not os.path.exists(directory):
-            return
+def delete_contents(folder):
+    for the_file in os.listdir(folder):
+        file_path = os.path.join(folder, the_file)
         try:
-            for root, _dirs, files in os.walk(directory):
-                for name in files:
-                    filepath = os.path.join(root, name)
-                    object_name = str(self.task.pipeline_id) + "/" + self.task.job_id + "/" + name
-                    s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
-
-        except:
-            import traceback
-            traceback.print_exc()
-            return -2
-
-    def initialize(self, task):
-        self.task = task
-        self.docker_image_name = task.service['image_name']
-        self.docker_image_tag = task.service['image_tag']
-        self.shared_input_folder = os.path.join("/", "input", task.job_id)
-        self.shared_output_folder = os.path.join("/", "output", task.job_id)
-        self.shared_log_folder = os.path.join("/", "log", task.job_id)
-
-        self.docker_env = ["INPUT_FOLDER=" + self.shared_input_folder,
-                           "OUTPUT_FOLDER=" + self.shared_output_folder,
-                           "LOG_FOLDER=" + self.shared_log_folder]
-
-
-    def preprocess(self):
-        print('Pre-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
-        self._create_shared_folders()
-        self._pull_image()
-       
-    def process(self):
-        print('Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
-
-        self.run_pool = True
-
-        # touch output file
-        log_file = os.path.join(self.shared_log_folder, "log.dat")
-
-        Path(log_file).touch()
-        fut = pool.submit(self._bg_job, self.task, log_file)
-
-        try:
-            docker_image = self.docker_image_name + ":" + self.docker_image_tag 
-            self.docker_client.containers.run(docker_image, "run", 
-                 detach=False, remove=True,
-                 volumes = {'simcorecompbackend_input'  : {'bind' : '/input'}, 
-                            'simcorecompbackend_output' : {'bind' : '/output'},
-                            'simcorecompbackend_log'    : {'bind'  : '/log'}},
-                 environment=self.docker_env)
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path): shutil.rmtree(file_path)
         except Exception as e:
             print(e)
-
-        time.sleep(1)
-        self.run_pool = False
-        while not fut.done():
-            time.sleep(0.1)
-
-        print('DONE Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
-
-    def run(self):
-        self.preprocess()
-        self.process()
-        self.postprocess()
-
-    def postprocess(self):
-        print('Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
-        
-        self._process_task_output()
-        self.task.state = SUCCESS
-        session.add(self.task)
-        session.commit()
-
-
 
 def create_directories(task_id):
     global io_dirs
@@ -440,10 +306,7 @@ def pipeline(self, pipeline_id, node_id=None):
         session.add(task)
         session.commit()
         celery_task_id = task.job_id
-        sidecar = Sidecar()
-        sidecar.initialize(task)
-        sidecar.run()
-        #_process_task_node(task, celery_task_id, pipeline_id, node_id)
+        _process_task_node(task, celery_task_id, pipeline_id, node_id)
 
         next_task_nodes = list(graph.successors(node_id))
     else:
