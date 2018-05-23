@@ -213,137 +213,6 @@ class Sidecar(object):
         session.add(self.task)
         session.commit()
 
-
-
-def create_directories(task_id):
-    global io_dirs
-    for d in ['input', 'output', 'log']:
-        dir = os.path.join("/", d, task_id)
-        io_dirs[d] = dir
-        if not os.path.exists(dir):
-            os.makedirs(dir)
-        else:
-            delete_contents(dir)
-
-def _bg_job(task, log_file):
-    connection = pika.BlockingConnection(parameters)
-
-    channel = connection.channel()
-    channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
-    channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
-
-    with open(log_file) as file_:
-        # Go to the end of file
-        file_.seek(0,2)
-        while run_pool:
-            curr_position = file_.tell()
-            line = file_.readline()
-            if not line:
-                file_.seek(curr_position)
-                time.sleep(1)
-            else:
-                clean_line = line.strip()
-                if clean_line.lower().startswith("[progress]"):
-                    progress = clean_line.lower().lstrip("[progress]").rstrip("%").strip()
-                    prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
-                    prog_body = json.dumps(prog_data)
-                    channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
-                else:
-                    log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : clean_line}
-                    log_body = json.dumps(log_data)
-                    channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
-
-        
-    connection.close()
-    
-def start_container(task, task_id, docker_image_name, io_env):
-    global run_pool
-    global io_dirs
-
-    run_pool = True
-    
-    client = docker.from_env(version='auto')
-
-    # touch output file
-    log_file = os.path.join(io_dirs['log'], "log.dat")
-
-    Path(log_file).touch()
-    fut = pool.submit(_bg_job, task, log_file)
-
-    try:
-        client.containers.run(docker_image_name, "run", 
-             detach=False, remove=True,
-             volumes = {'simcorecompbackend_input'  : {'bind' : '/input'}, 
-                        'simcorecompbackend_output' : {'bind' : '/output'},
-                        'simcorecompbackend_log'    : {'bind'  : '/log'}},
-             environment=io_env)
-    except Exception as e:
-        print(e)
-
-    time.sleep(1)
-    run_pool = False
-    while not fut.done():
-        time.sleep(0.1)
-
-    # hash output
-    #output_hash = hash_job_output()
-
-    process_task_output(task)
-
-    task.state = SUCCESS
-    session.add(task)
-    session.commit()
-
-    return# output_hash
-
-def process_task_output(task):
-    directory = io_dirs['output']
-    if not os.path.exists(directory):
-        return
-    try:
-        for root, dirs, files in os.walk(directory):
-            for name in files:
-                filepath = os.path.join(root, name)
-                object_name = str(task.pipeline_id) + "/" + task.job_id + "/" + name
-                s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
-        
-    except:
-        import traceback
-        traceback.print_exc()
-        return -2
-
-def hash_job_output():
-    output_hash = hashlib.sha256()
-    directory = io_dirs['output']
-
-    if not os.path.exists (directory):
-        return -1
-
-    try:
-        for root, dirs, files in os.walk(directory):
-            for names in files:
-                filepath = os.path.join(root,names)
-                try:
-                    f1 = open(filepath, 'rb')
-                except:
-                    # You can't open the file for some reason
-                    f1.close()
-                    continue
-
-                while 1:
-                    # Read file in as little chunks
-                    buf = f1.read(4096)
-                    if not buf : break
-                    output_hash.update(buf)
-                f1.close()
-    except:
-        import traceback
-        # Print the stack traceback
-        traceback.print_exc()
-        return -2
-
-    return output_hash.hexdigest() 
-
 def find_entry_point(G):
     result = []
     for node in G.nodes:
@@ -367,33 +236,6 @@ def _is_node_ready(task, graph):
     
     return True
     
-def _process_task_node(task, celery_task_id, pipeline_id, node_id):
-    # create directories
-    create_directories(celery_task_id)
-
-    # fetch container
-    image_name = task.service['image_name']
-    image_tag = task.service['image_tag']
-    client = docker.from_env(version='auto')
-    client.login(registry="masu.speag.com/v2", username="z43", password="z43")
-    client.images.pull(image_name, tag=image_tag)
-    docker_image_name = image_name + ":" + image_tag
-
-
-    io_env = []
-    io_env.append("INPUT_FOLDER=/input/"+celery_task_id)
-    io_env.append("OUTPUT_FOLDER=/output/"+celery_task_id)
-    io_env.append("LOG_FOLDER=/log/"+celery_task_id)
-
-    print('Runnning Pipeline {} and node {} from container'.format(pipeline_id, task.internal_id))
-
-    start_container(task, celery_task_id, docker_image_name, io_env)
-
-    # postprocess
-    task.state = SUCCESS
-    session.add(task)
-    session.commit()
-
 @celery.task(name='mytasks.pipeline', bind=True)
 def pipeline(self, pipeline_id, node_id=None):
     pipeline = session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
@@ -439,11 +281,10 @@ def pipeline(self, pipeline_id, node_id=None):
         task.state = RUNNING
         session.add(task)
         session.commit()
-        celery_task_id = task.job_id
+       
         sidecar = Sidecar()
         sidecar.initialize(task)
         sidecar.run()
-        #_process_task_node(task, celery_task_id, pipeline_id, node_id)
 
         next_task_nodes = list(graph.successors(node_id))
     else:
