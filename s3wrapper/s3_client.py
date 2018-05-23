@@ -150,10 +150,19 @@ class S3Client(object):
 
         return results
 
-    def create_presigned_put_url(self, bucket_name, object_name, days_valid=3):
+    def create_presigned_put_url(self, bucket_name, object_name, dt=timedelta(days=3)):
         try:
             return self.client.presigned_put_object(bucket_name, object_name,
-                expires=timedelta(days=days_valid))
+                    expires=dt)
+                
+        except ResponseError as err:
+            print(err)
+            return ""
+
+    def create_presigned_get_url(self, bucket_name, object_name, dt=timedelta(days=3)):
+        try:
+            return self.client.presigned_get_object(bucket_name, object_name,
+                    expires=dt)
                 
         except ResponseError as err:
             print(err)

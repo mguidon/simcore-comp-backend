@@ -4,6 +4,10 @@ import uuid
 
 import pytest
 import urllib3
+import urllib
+import time
+from datetime import timedelta
+
 
 import s3wrapper
 from s3wrapper.s3_client import S3Client
@@ -123,16 +127,56 @@ def test_presigned_put(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "my_file"
     url = s3_client.create_presigned_put_url(bucket, object_name)
-    http = urllib3.PoolManager()
     with open(filepath, 'rb') as fp:
-        data = fp.read()
-        response = http.urlopen('PUT', url, data)
-        assert response.status == 200
+        d = fp.read()
+        req = urllib.request.Request(url, data=d, method='PUT')
+        with urllib.request.urlopen(req) as f:
+            pass
 
     filepath2 = filepath + "."
     assert s3_client.download_file(bucket, object_name, filepath2)
-    #assert filecmp.cmp(filepath2, filepath)
+    assert filecmp.cmp(filepath2, filepath)
 
+def test_presigned_put_expired(s3_client, bucket, text_files):
+    filepath = text_files(1)[0]
+    object_name = "my_file"
+    url = s3_client.create_presigned_put_url(bucket, object_name, timedelta(seconds=1))
+    time.sleep(2)
+    failed = False
+    with open(filepath, 'rb') as fp:
+        d = fp.read()
+        req = urllib.request.Request(url, data=d, method='PUT')
+        try:
+            urllib.request.urlopen(req)
+        except:
+            failed = True
+    assert failed
+
+
+def test_presigned_get(s3_client, bucket, text_files):
+    filepath = text_files(1)[0]
+    filepath2 = filepath + "."
+    object_name = "bla"
+    assert s3_client.upload_file(bucket, object_name, filepath)
+    url = s3_client.create_presigned_get_url(bucket, object_name)
+    urllib.request.urlretrieve(url, filepath2)
+
+    assert filecmp.cmp(filepath2, filepath)
+
+def test_presigned_get_expired(s3_client, bucket, text_files):
+    filepath = text_files(1)[0]
+    filepath2 = filepath + "."
+    object_name = "bla"
+    assert s3_client.upload_file(bucket, object_name, filepath)
+    url = s3_client.create_presigned_get_url(bucket, object_name, timedelta(seconds=1))
+    time.sleep(2)
+    failed = False
+    try:
+       urllib.request.urlretrieve(url, filepath2)
+    except:
+        failed = True
+
+    assert failed
 
 
 
