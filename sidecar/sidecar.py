@@ -16,12 +16,11 @@ from celery.result import AsyncResult
 from celery.signals import (after_setup_logger, task_failure, task_postrun,
                             task_prerun)
 from celery.states import SUCCESS
-from sqlalchemy import create_engine, and_
+from sqlalchemy import and_, exc, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
                              ComputationalPipeline, ComputationalTask)
-
 from s3_client import S3Client
 
 env = os.environ
@@ -102,6 +101,10 @@ class Sidecar(object):
             else:
                 self._delete_contents(folder)
 
+    def _parse_input(self):
+        input = self.task.input
+
+
     def _pull_image(self):
         self.docker_client.login(registry=self.docker_registry,
             username=self.docker_registry_user, password=self.docker_registry_pwd)
@@ -157,8 +160,8 @@ class Sidecar(object):
 
     def initialize(self, task):
         self.task = task
-        self.docker_image_name = task.service['image_name']
-        self.docker_image_tag = task.service['image_tag']
+        self.docker_image_name = task.image['name']
+        self.docker_image_tag = task.image['tag']
         self.shared_input_folder = os.path.join("/", "input", task.job_id)
         self.shared_output_folder = os.path.join("/", "output", task.job_id)
         self.shared_log_folder = os.path.join("/", "log", task.job_id)
@@ -171,6 +174,7 @@ class Sidecar(object):
     def preprocess(self):
         print('Pre-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         self._create_shared_folders()
+        #self._parse_input()
         self._pull_image()
        
     def process(self):
@@ -215,6 +219,9 @@ class Sidecar(object):
         self.session.add(self.task)
         self.session.commit()
 
+        print('DONE Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        
+
     def _find_entry_point(self, G):
         result = []
         for node in G.nodes:
@@ -223,7 +230,9 @@ class Sidecar(object):
         return result
 
     def _is_node_ready(self, task, graph):
-        tasks = self.session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
+        tasks = self.session.query(ComputationalTask).filter(and_(
+            ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id))),
+            ComputationalTask.pipeline_id==task.pipeline_id)).all()
 
         print("TASK {} ready? Checking ..".format(task.internal_id))
         for dep_task in tasks:
@@ -239,21 +248,24 @@ class Sidecar(object):
         return True
 
     def inspect(self, celery_task, pipeline_id, node_id):
+
         pipeline = self.session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
         graph = pipeline.execution_graph
         next_task_nodes = []
         if node_id:
             do_process = True
-
             # find the for the current node_id, skip if there is already a job_id around
-            query = self.session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None))
+            query = self.session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id,
+                ComputationalTask.pipeline_id==pipeline_id, ComputationalTask.job_id==None))
             # Use SELECT FOR UPDATE TO lock the row
             query.with_for_update()
             try:
                 task = query.one()
-            except:
+            except exc.SQLAlchemyError as err:
+                print(err)  
                 # no result found, just return
                 return next_task_nodes
+
             if task == None:
                 return next_task_nodes
     
@@ -274,7 +286,8 @@ class Sidecar(object):
             else:
                 return next_task_nodes
 
-            task = self.session.query(ComputationalTask).filter_by(node_id=node_id).one()
+            task = self.session.query(ComputationalTask).filter(
+                and_(ComputationalTask.node_id==node_id,ComputationalTask.pipeline_id==pipeline_id)).one()
             if task.job_id != celery_task.request.id:
                 # somebody else was faster
                 return next_task_nodes
@@ -284,6 +297,34 @@ class Sidecar(object):
             self.session.commit()
             self.initialize(task)
             self.run()
+
+            next_task_nodes = list(graph.successors(node_id))
+        else:
+            next_task_nodes = self._find_entry_point(graph)
+
+        celery_task.update_state(state=SUCCESS)
+        
+        return next_task_nodes
+
+SIDECAR = Sidecar()
+@celery.task(name='mytasks.pipeline', bind=True)
+def pipeline(self, pipeline_id, node_id=None):
+    next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
+    for node_id in next_task_nodes:
+        _task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
+        else:
+            next_task_nodes = self._find_entry_point(graph)
+
+        celery_task.update_state(state=SUCCESS)
+        
+        return next_task_nodes
+
+SIDECAR = Sidecar()
+@celery.task(name='mytasks.pipeline', bind=True)
+def pipeline(self, pipeline_id, node_id=None):
+    next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
+    for node_id in next_task_nodes:
+        _task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
 
             next_task_nodes = list(graph.successors(node_id))
         else:

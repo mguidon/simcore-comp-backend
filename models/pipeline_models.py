@@ -47,7 +47,7 @@ class ComputationalTask(Base):
 
     input = Column(JSON)
     output = Column(JSON)
-    service = Column(JSON)
+    image = Column(JSON)
     state = Column(Integer, default=UNKNOWN)
 
     # utc timestamps for submission/start/end

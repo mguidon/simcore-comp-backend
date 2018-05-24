@@ -1,54 +1,32 @@
-"""
-    Uses socketio and aiohtttp framework
-"""
-# pylint: disable=C0103
-
-from aiohttp import web
-import aiohttp
-import asyncio
-import async_timeout
-import uuid
+import uuid 
 import json
+from pprint import pprint
 import datetime
+import pytest
 
-from setup import *
+import models
+from models.pipeline_models import ComputationalPipeline, ComputationalTask
 
-comp_backend_routes = web.RouteTableDef()
+import os 
+__DIR_PATH__ = os.path.dirname(os.path.realpath(__file__))
 
-async def async_request(method, session, url, json=None, timeout=10):
-    async with async_timeout.timeout(timeout):
-        if method == "GET":
-            async with session.get(url) as response:
-                return await response.json()
-        elif method == "POST":
-            async with session.post(url, json=json) as response:
-                return await response.json()
+def _find_entry_point(G):
+    result = []
+    for node in G.nodes:
+        if len(list(G.predecessors(node))) == 0:
+            result.append(node)
+    return result
 
-@comp_backend_routes.post('/start_pipeline')
-async def start_pipeline(request):
-    """
-    ---
-    description: This end-point starts a computational pipeline.
-    tags:
-    - computational backend
-    produces:
-    - application/json
-    responses:
-        "200":
-            description: successful operation. Return "pong" text
-        "405":
-            description: invalid HTTP Method
-    """
 
-    request_data = await request.json()
-
-    _id = request_data['pipeline_mockup_id']
-
-    with open('mockup.json') as f:
+def test_pipeline_generation():
+    mockfile_path = os.path.join(__DIR_PATH__, 'mockup.json')
+    with open(mockfile_path) as f:
         mockup = json.load(f)
 
+    assert mockup
     nodes = mockup['nodes']
     links = mockup['links']
+
 
     dag_adjacency_list = dict()
     tasks = dict()
@@ -61,7 +39,6 @@ async def start_pipeline(request):
         task["output"] = node["outputs"]
         task["image"] = { "name" : "masu.speag.com/simcore/services/comp/sleeper",
                           "tag"  : "1.0"}
-
         for link in links:
             if link['node1Id'] == node_id:
                 successor_node_id = link['node2Id']
@@ -76,34 +53,32 @@ async def start_pipeline(request):
                 for t in task['input']:
                     if t['key'] == input_port:
                         t['value'] = 'link.' + predecessor_node_id + "." + output_port
-
-
         if len(successor_nodes):
             dag_adjacency_list[node_id] = successor_nodes
         tasks[node_id] = task
 
-    pipeline = ComputationalPipeline(dag_adjacency_list=dag_adjacency_list, state=0)
 
-    session.add(pipeline)
-    session.flush()
+    pipeline = ComputationalPipeline(dag_adjacency_list=dag_adjacency_list, state=0)
 
     pipeline_id = pipeline.pipeline_id
     pipeline_name = "mockup"
     internal_id = 1
 
+    comp_tasks = []
     for node_id in tasks:
         task = tasks[node_id]
         new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id, image=task['image'],
                     input=task['input'], output=task['output'], submit=datetime.datetime.utcnow())
+        comp_tasks.append(new_task)
         internal_id = internal_id+1
-        session.add(new_task)
 
-    session.commit()
-    
-    task = celery.send_task('mytasks.pipeline', args=(pipeline_id,), kwargs={})
 
-    response = {}
-    response['pipeline_name'] = pipeline_name
-    response['pipeline_id'] = str(pipeline_id)
+    graph = pipeline.execution_graph
+    next_node = _find_entry_point(graph)
+    for n in next_node:
+        print(n)
+  
+    assert 0
 
-    return web.json_response(response)
+
+
