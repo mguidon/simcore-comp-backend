@@ -44,12 +44,6 @@ celery= Celery('tasks',
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
 parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=credentials, connection_attempts=100)
 
-io_dirs = {}
-pool = ThreadPoolExecutor(1)
-run_pool = True
-
-env = os.environ
-
 POSTGRES_URL = "postgres:5432"
 POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
 POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
@@ -57,31 +51,39 @@ POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
 
 DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
 
-db = create_engine(DB_URL, client_encoding='utf8')
-
-Session = sessionmaker(db)
-session = Session()
-
-
 S3_ENDPOINT = env.get("S3_ENDPOINT", "")
 S3_ACCESS_KEY = env.get("S3_ACCESS_KEY", "")
 S3_SECRET_KEY = env.get("S3_SECRET_KEY", "")
 S3_BUCKET_NAME = env.get("S3_BUCKET_NAME", "")
 
-s3_client = S3Client(endpoint=S3_ENDPOINT, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY)
-s3_client.create_bucket(S3_BUCKET_NAME)
 
 class Sidecar(object):
     def __init__(self):
+        # publish subscribe config
         self._pika_credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
         self._pika_parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, 
             port=RABBITMQ_PORT, credentials=self._pika_credentials, connection_attempts=100)
 
-        self.task = None
+        # docker client config
         self.docker_client = docker.from_env(version='auto')
         self.docker_registry = "masu.speag.com/v2"
         self.docker_registry_user = "z43"
         self.docker_registry_pwd = "z43"
+
+        # object storage config
+        self.s3_client = S3Client(endpoint=S3_ENDPOINT, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY)
+        self.s3_client.create_bucket(S3_BUCKET_NAME)
+
+        # db config
+        self.db = create_engine(DB_URL, client_encoding='utf8')
+        self.Session = sessionmaker(self.db)
+        self.session = self.Session()
+
+        # thread pool
+        self.pool = ThreadPoolExecutor(1)
+
+        self.task = None
+        
 
     def _delete_contents(self, folder):
         for file in os.listdir(folder):
@@ -146,7 +148,7 @@ class Sidecar(object):
                 for name in files:
                     filepath = os.path.join(root, name)
                     object_name = str(self.task.pipeline_id) + "/" + self.task.job_id + "/" + name
-                    s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
+                    self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
 
         except:
             import traceback
@@ -180,7 +182,7 @@ class Sidecar(object):
         log_file = os.path.join(self.shared_log_folder, "log.dat")
 
         Path(log_file).touch()
-        fut = pool.submit(self._bg_job, self.task, log_file)
+        fut = self.pool.submit(self._bg_job, self.task, log_file)
 
         try:
             docker_image = self.docker_image_name + ":" + self.docker_image_tag 
@@ -210,8 +212,8 @@ class Sidecar(object):
         
         self._process_task_output()
         self.task.state = SUCCESS
-        session.add(self.task)
-        session.commit()
+        self.session.add(self.task)
+        self.session.commit()
 
     def _find_entry_point(self, G):
         result = []
@@ -221,7 +223,7 @@ class Sidecar(object):
         return result
 
     def _is_node_ready(self, task, graph):
-        tasks = session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
+        tasks = self.session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
 
         print("TASK {} ready? Checking ..".format(task.internal_id))
         for dep_task in tasks:
@@ -237,14 +239,14 @@ class Sidecar(object):
         return True
 
     def inspect(self, celery_task, pipeline_id, node_id):
-        pipeline = session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
+        pipeline = self.session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
         graph = pipeline.execution_graph
         next_task_nodes = []
         if node_id:
             do_process = True
 
             # find the for the current node_id, skip if there is already a job_id around
-            query = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None))
+            query = self.session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None))
             # Use SELECT FOR UPDATE TO lock the row
             query.with_for_update()
             try:
@@ -267,19 +269,19 @@ class Sidecar(object):
 
             if do_process:           
                 task.job_id = celery_task.request.id
-                session.add(task)
-                session.commit()
+                self.session.add(task)
+                self.session.commit()
             else:
                 return next_task_nodes
 
-            task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
+            task = self.session.query(ComputationalTask).filter_by(node_id=node_id).one()
             if task.job_id != celery_task.request.id:
                 # somebody else was faster
                 return next_task_nodes
 
             task.state = RUNNING
-            session.add(task)
-            session.commit()
+            self.session.add(task)
+            self.session.commit()
             self.initialize(task)
             self.run()
 
@@ -296,4 +298,4 @@ SIDECAR = Sidecar()
 def pipeline(self, pipeline_id, node_id=None):
     next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
     for node_id in next_task_nodes:
-        task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
+        _task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
