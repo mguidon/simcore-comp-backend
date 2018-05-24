@@ -213,84 +213,87 @@ class Sidecar(object):
         session.add(self.task)
         session.commit()
 
-def find_entry_point(G):
-    result = []
-    for node in G.nodes:
-        if len(list(G.predecessors(node))) == 0:
-            result.append(node)
-    return result
+    def _find_entry_point(self, G):
+        result = []
+        for node in G.nodes:
+            if len(list(G.predecessors(node))) == 0:
+                result.append(node)
+        return result
 
-def _is_node_ready(task, graph):
-    tasks = session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
+    def _is_node_ready(self, task, graph):
+        tasks = session.query(ComputationalTask).filter(ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id)))).all()
 
-    print("TASK {} ready? Checking ..".format(task.internal_id))
-    for dep_task in tasks:
-        job_id = dep_task.job_id
-        if not job_id:
-            return False
-        else:
-            print("TASK {} DEPENDS ON {} with stat {}".format(task.internal_id, dep_task.internal_id,dep_task.state))
-            if not dep_task.state == SUCCESS:
+        print("TASK {} ready? Checking ..".format(task.internal_id))
+        for dep_task in tasks:
+            job_id = dep_task.job_id
+            if not job_id:
                 return False
-    print("TASK {} is ready".format(task.internal_id))
+            else:
+                print("TASK {} DEPENDS ON {} with stat {}".format(task.internal_id, dep_task.internal_id,dep_task.state))
+                if not dep_task.state == SUCCESS:
+                    return False
+        print("TASK {} is ready".format(task.internal_id))
+
+        return True
+
+    def inspect(self, celery_task, pipeline_id, node_id):
+        pipeline = session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
+        graph = pipeline.execution_graph
+        next_task_nodes = []
+        if node_id:
+            do_process = True
+
+            # find the for the current node_id, skip if there is already a job_id around
+            query = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None))
+            # Use SELECT FOR UPDATE TO lock the row
+            query.with_for_update()
+            try:
+                task = query.one()
+            except:
+                # no result found, just return
+                return next_task_nodes
+            if task == None:
+                return next_task_nodes
     
-    return True
-    
-@celery.task(name='mytasks.pipeline', bind=True)
-def pipeline(self, pipeline_id, node_id=None):
-    pipeline = session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
-    graph = pipeline.execution_graph
-    next_task_nodes = []
-    if node_id:
-        do_process = True
+            # already done or running and happy
+            if task.job_id and (task.state == SUCCESS or task.state == RUNNING):
+                print("TASK {} ALREADY DONE OR RUNNING".format(task.internal_id))
+                do_process = False
 
-        # find the for the current node_id, skip if there is already a job_id around
-        query = session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==node_id, ComputationalTask.job_id==None))
-        # Use SELECT FOR UPDATE TO lock the row
-        query.with_for_update()
-        try:
-            task = query.one()
-        except:
-            # no result found, just return
-            return
-        if task == None:
-            return
-   
-        # already done or running and happy
-        if task.job_id and (task.state == SUCCESS or task.state == RUNNING):
-            print("TASK {} ALREADY DONE OR RUNNING".format(task.internal_id))
-            do_process = False
+            # Check if node's dependecies are there
+            if not self._is_node_ready(task, graph):
+                print("TASK {} NOT YET READY".format(task.internal_id))
+                do_process = False
 
-        # Check if node's dependecies are there
-        if not _is_node_ready(task, graph):
-            print("TASK {} NOT YET READY".format(task.internal_id))
-            do_process = False
+            if do_process:           
+                task.job_id = celery_task.request.id
+                session.add(task)
+                session.commit()
+            else:
+                return next_task_nodes
 
-        if do_process:           
-            task.job_id = self.request.id
+            task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
+            if task.job_id != celery_task.request.id:
+                # somebody else was faster
+                return next_task_nodes
+
+            task.state = RUNNING
             session.add(task)
             session.commit()
+            self.initialize(task)
+            self.run()
+
+            next_task_nodes = list(graph.successors(node_id))
         else:
-            return
+            next_task_nodes = self._find_entry_point(graph)
 
-        task = session.query(ComputationalTask).filter_by(node_id=node_id).one()
-        if task.job_id != self.request.id:
-            # somebody else was faster
-            return
+        celery_task.update_state(state=SUCCESS)
+        
+        return next_task_nodes
 
-        task.state = RUNNING
-        session.add(task)
-        session.commit()
-       
-        sidecar = Sidecar()
-        sidecar.initialize(task)
-        sidecar.run()
-
-        next_task_nodes = list(graph.successors(node_id))
-    else:
-        next_task_nodes = find_entry_point(graph)
-
-    self.update_state(state=SUCCESS)
-
+SIDECAR = Sidecar()
+@celery.task(name='mytasks.pipeline', bind=True)
+def pipeline(self, pipeline_id, node_id=None):
+    next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
     for node_id in next_task_nodes:
         task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
