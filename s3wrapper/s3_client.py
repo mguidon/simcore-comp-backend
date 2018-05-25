@@ -130,6 +130,17 @@ class S3Client(object):
             return False
         return True
 
+    def exists_object(self, bucket_name, object_name, recursive=False):
+        try:
+            objects = self.list_objects(bucket_name, recursive)
+            for obj in objects:
+                if obj.object_name == object_name:
+                    return True
+        except ResponseError as err:
+            print(err)
+            return False
+        return False
+
     def search(self, bucket_name, query, recursive=True, include_metadata=False):
         results = []
         objs = self.list_objects(bucket_name, recursive=recursive)

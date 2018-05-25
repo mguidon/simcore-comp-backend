@@ -17,6 +17,19 @@ def _find_entry_point(G):
             result.append(node)
     return result
 
+def _check_for_link_and_process(port):
+    print(port)
+    _port = port['value']
+    print("__", _port)
+    if _port and isinstance(_port, str):
+        if _port.startswith('link.'):
+            link = _port.split('.')
+            print(link)
+            object_name = os.path.join(link[1], link[2])
+            input_name = port['key']
+            print(input_name, object_name)
+            return True
+    return False
 
 def test_pipeline_generation():
     mockfile_path = os.path.join(__DIR_PATH__, 'mockup.json')
@@ -71,12 +84,18 @@ def test_pipeline_generation():
                     input=task['input'], output=task['output'], submit=datetime.datetime.utcnow())
         comp_tasks.append(new_task)
         internal_id = internal_id+1
+        
+        for port in task['input']:
+            _check_for_link_and_process(port)
+
 
 
     graph = pipeline.execution_graph
     next_node = _find_entry_point(graph)
     for n in next_node:
         print(n)
+  
+
   
     assert 0
 

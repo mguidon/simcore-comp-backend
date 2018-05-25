@@ -23,6 +23,10 @@ from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
                              ComputationalPipeline, ComputationalTask)
 from s3_client import S3Client
 
+import ptvsd
+ptvsd.enable_attach('my_secret', address=('0.0.0.0', 3000))
+print('ptvsd is started')
+
 env = os.environ
 RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
 RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
@@ -101,9 +105,52 @@ class Sidecar(object):
             else:
                 self._delete_contents(folder)
 
-    def _parse_input(self):
-        input = self.task.input
+    def _process_task_input(self):
+        """ Writes input key-value pairs into a dictionary
 
+            if the value of any port starts with 'link.' the corresponding
+            output ports a fetched or files dowloaded --> @ jsonld
+
+            The dictionary is dumped to input.json, files are dumped
+            as port['key']. Both end up in /input/ of the container
+        """
+        input = self.task.input
+        print('Input parsing for {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        print(input)
+        input_ports = dict()
+        for port in input:
+            print(port)
+            port_name = port['key']
+            port_value = port['value']
+            print(type(port_value))
+            if isinstance(port_value, str) and port_value.startswith("link."):
+                if port['type'] == 'file-url':
+                    print('Fetch S3 {}'.format(port_value))
+                    object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[:1])
+                    input_file = os.path.join(self.shared_input_folder, port_name)
+                    if self.s3_client.exists_object(S3_BUCKET_NAME, object, True):
+                        self.s3_client.download_file(S3_BUCKET_NAME, object_name, input_file)
+                        input_ports[port_name] = port_name
+                    else:
+                        print("ERROR, input port {} not found in S3".format(port_value))
+                        input_ports[port_name] = None
+                else:
+                    print('Fetch DB {}'.format(port_value))                    
+                    other_node_id = port_value.split(".")[1] 
+                    other_output_port_id = port_value.split(".")[2]
+                    other_task = self.session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==other_node_id,
+                                            ComputationalTask.pipeline_id==self.task.pipeline_id)).one()
+                    if other_task is None:
+                        print("ERROR, input port {} not found in db".format(port_value))
+                    else:
+                        for oport in other_task.output:
+                            if oport['key'] == other_output_port_id:
+                                input_ports[port_name] = oport['value']
+        #dump json file
+        if len(input_ports):
+            file_name = os.path.join(self.shared_input_folder, 'input.json')
+            with open(file_name, 'w') as f:
+                json.dump(input_ports, f)
 
     def _pull_image(self):
         self.docker_client.login(registry=self.docker_registry,
@@ -143,6 +190,15 @@ class Sidecar(object):
         connection.close()
 
     def _process_task_output(self):
+        """ There will be some files in the /output
+        
+                - Maybe a output.log (redirected stdout)
+                - Maybe a output.json (should contain key value for simple things)
+                - other files: should be named by the key in the output port
+
+            Files will be pushed to S3 with reference in db. output.json will be parsed
+            and the db updated
+        """
         directory = self.shared_output_folder
         if not os.path.exists(directory):
             return
@@ -150,8 +206,22 @@ class Sidecar(object):
             for root, _dirs, files in os.walk(directory):
                 for name in files:
                     filepath = os.path.join(root, name)
-                    object_name = str(self.task.pipeline_id) + "/" + self.task.job_id + "/" + name
-                    self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
+                    # the name should match what is in the db!
+
+                    if name == 'output.json':
+                        # parse and compare/update with the tasks output ports from db
+                        output_ports = dict()                        
+                        with open(filepath) as f:
+                            output_ports = json.load(f)
+                            task_outputs = self.task.output
+                            for to in task_outputs:
+                                if to['key'] in output_ports.keys():
+                                    to['value'] = output_ports[to['key']]
+                    else:
+                        object_name = str(self.task.pipeline_id) + "/" + self.task.job_id + "/" + name
+                        self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
+            self.session.add(self.task)
+            self.session.commit()
 
         except:
             import traceback
@@ -174,7 +244,7 @@ class Sidecar(object):
     def preprocess(self):
         print('Pre-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         self._create_shared_folders()
-        #self._parse_input()
+        self._process_task_input()
         self._pull_image()
        
     def process(self):
@@ -248,7 +318,6 @@ class Sidecar(object):
         return True
 
     def inspect(self, celery_task, pipeline_id, node_id):
-
         pipeline = self.session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
         graph = pipeline.execution_graph
         next_task_nodes = []
@@ -297,34 +366,6 @@ class Sidecar(object):
             self.session.commit()
             self.initialize(task)
             self.run()
-
-            next_task_nodes = list(graph.successors(node_id))
-        else:
-            next_task_nodes = self._find_entry_point(graph)
-
-        celery_task.update_state(state=SUCCESS)
-        
-        return next_task_nodes
-
-SIDECAR = Sidecar()
-@celery.task(name='mytasks.pipeline', bind=True)
-def pipeline(self, pipeline_id, node_id=None):
-    next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
-    for node_id in next_task_nodes:
-        _task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
-        else:
-            next_task_nodes = self._find_entry_point(graph)
-
-        celery_task.update_state(state=SUCCESS)
-        
-        return next_task_nodes
-
-SIDECAR = Sidecar()
-@celery.task(name='mytasks.pipeline', bind=True)
-def pipeline(self, pipeline_id, node_id=None):
-    next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
-    for node_id in next_task_nodes:
-        _task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
 
             next_task_nodes = list(graph.successors(node_id))
         else:

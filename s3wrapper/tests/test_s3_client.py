@@ -26,9 +26,9 @@ def s3_client():
 def bucket(s3_client, request):
     bucket_name = "simcore-test"
     s3_client.create_bucket(bucket_name, delete_contents_if_exists=True)
-    #def fin():
-    #    s3_client.remove_bucket(bucket_name, delete_contents=True)
-   # request.addfinalizer(fin)
+    def fin():
+        s3_client.remove_bucket(bucket_name, delete_contents=True)
+    request.addfinalizer(fin)
     return bucket_name
 
 @pytest.fixture(scope="function")
@@ -177,6 +177,19 @@ def test_presigned_get_expired(s3_client, bucket, text_files):
         failed = True
 
     assert failed
+
+def test_object_exists(s3_client, bucket, text_files):
+    files = text_files(2)
+    file1 = files[0]
+    file2 = files[1]
+    object_name = "level1"
+    assert s3_client.upload_file(bucket, object_name, file1)
+    assert s3_client.exists_object(bucket, object_name, False)
+    object_name = "leve1/level2"
+    assert s3_client.upload_file(bucket, object_name, file2)
+    assert not s3_client.exists_object(bucket, object_name, False)
+    assert s3_client.exists_object(bucket, object_name, True)
+
 
 
 

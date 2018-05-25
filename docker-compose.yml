@@ -30,13 +30,13 @@ services:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
     ports:
       - "15672:15672"
-  flower:
-    image: ondrejit/flower:latest
-    command: --broker=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbit:5672
-    ports:
-      - 5555:5555
-    depends_on:
-      - rabbit
+#  flower:
+#    image: ondrejit/flower:latest
+#    command: --broker=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbit:5672
+#    ports:
+#      - 5555:5555
+#    depends_on:
+#      - rabbit
   sidecar:
     build:
       context: .
@@ -51,6 +51,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"
+      - "3000:3000"
     environment:
       - PYTHONPATH=/work/models
     environment:
