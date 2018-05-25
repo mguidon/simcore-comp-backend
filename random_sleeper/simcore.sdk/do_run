@@ -1,6 +1,12 @@
 #!/bin/bash
-output_file=$OUTPUT_FOLDER/out_1
-input_file=$INPUT_FOLDER/input
-log_file=$LOG_FOLDER/log.dat
+#OUTPUT_FOLDER=${PWD}
+#INPUT_FOLDER=${PWD}
+#LOG_FOLDER=${PWD}
 
-./sleeper $input_file $output_file >> $log_file
+output_file=$OUTPUT_FOLDER/out_1
+input_file=$INPUT_FOLDER/in_1
+log_file=$LOG_FOLDER/log.dat
+in_2=$(cat $INPUT_FOLDER/input.json | jq ".in_2")
+
+./sleeper --in_1 $input_file --in_2 $in_2 --out_1 $output_file >> $log_file
+#./sleeper --in_1 $input_file --out_1 $output_file >> $log_file

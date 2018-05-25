@@ -5,6 +5,8 @@
 #include <fstream>
 #include <stdlib.h> 
 
+#include "json.hpp"
+#include "cxxopts.hpp"
 
 /*
     Simple computational node with the following ports
@@ -34,30 +36,45 @@
     out_2 is written to file output.json
 
 */
+using json = nlohmann::json;
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
-    std::string input_filename;
-    std::string output_filename;
 
-    if (argc>1)
-    {
-        input_filename = std::string(argv[1]);
-    }
+    cxxopts::Options options("Sleeper", "I am lazy");
 
-    if (argc>2)
-    {
-        output_filename = std::string(argv[2]);
-    }
+    options.add_options()
+        ("in_1", "path input file", cxxopts::value<std::string>())
+        ("in_2", "integer number", cxxopts::value<int>())
+        ("out_1","path to output file", cxxopts::value<std::string>());
 
-    int N = 4;
-    
-    if (!input_filename.empty() && std::ifstream(input_filename))
+    auto result = options.parse(argc, argv);
+
+    int in_1 = rand() % 8 + 1;
+    int in_2 = rand() % 8 + 1;
+
+    if (result.count("in_1"))
     {
-        std::fstream input(input_filename, std::ios_base::in);
-        input >> N;
+        std::string in1_filename = result["in_1"].as<std::string>();
+        std::fstream input(in1_filename, std::ios_base::in);
+        input >> in_1;
         input.close();
+        std::cout << "in_1:\t" << in1_filename << ":" << in_1 << std::endl;
     }
+    if (result.count("in_2"))
+    {
+        in_2 = result["in_2"].as<int>();
+        std::cout << "in_2:\t" << in_2 << std::endl;
+    }
+    
+    std::string out_1_filename;
+    if (result.count("out_1"))
+    {
+        out_1_filename = result["out_1"].as<std::string>();
+        std::cout << "out_1:\t" << out_1_filename << std::endl;
+    }    
+
+    int N = (in_1 + in_2) / 2;
     float dp = 1.0f / static_cast<float>(N);
     std::cout << "I am starting to sleep now..." << std::endl;    
     for (int i=0; i<N; i++)
@@ -72,13 +89,22 @@ int main(int argc, char const *argv[])
     // seems we have to flush here
     std::cout << "...I am done with sleeping" << std::endl << std::flush;
 
-    if (!output_filename.empty())
+    if (!out_1_filename.empty())
     {
         std::ofstream output;
-        output.open(output_filename);
+        output.open(out_1_filename);
         int random_number = rand() % 8 + 1;
         output <<  random_number << std::endl;
         output.close();
     }
+
+    // write output.json
+    json joutput;
+
+    joutput["out_2"] = rand() % 8 + 1;
+
+    std::ofstream of("output.json");
+    of << joutput;
+
     return 0;
 }

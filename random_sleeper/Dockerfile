@@ -2,7 +2,7 @@ FROM alpine
 
 MAINTAINER  Manuel guidon <guidon@itis.ethz.ch>
 
-RUN apk add --no-cache g++ bash
+RUN apk add --no-cache g++ bash jq
 
 WORKDIR /work
 

@@ -1,0 +1,25 @@
+in_1:	3
+in_2:	0
+out_1:	/home/guidon/devel/simcore-comp-backend/random_sleeper/code/out_1
+I am starting to sleep now...
+Slept for 1 seconds out of 1
+[PROGRESS]1.000000
+...I am done with sleeping
+in_1:	3
+in_2:	0
+out_1:	/home/guidon/devel/simcore-comp-backend/random_sleeper/code/out_1
+I am starting to sleep now...
+Slept for 1 seconds out of 1
+[PROGRESS]1.000000
+...I am done with sleeping
+in_1:	3
+in_2:	4
+out_1:	/home/guidon/devel/simcore-comp-backend/random_sleeper/code/out_1
+I am starting to sleep now...
+Slept for 1 seconds out of 3
+[PROGRESS]0.333333
+Slept for 2 seconds out of 3
+[PROGRESS]0.666667
+Slept for 3 seconds out of 3
+[PROGRESS]1.000000
+...I am done with sleeping
