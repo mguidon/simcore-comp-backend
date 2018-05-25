@@ -5,6 +5,36 @@
 #include <fstream>
 #include <stdlib.h> 
 
+
+/*
+    Simple computational node with the following ports
+
+           _____________________
+    in_1 -|                     | -out_1
+          |                     |
+          |                     |
+    in_2 -|_____________________| -out_2
+            
+
+    in_1: File containing one random integer number, optional
+    in_2: integer number, optional
+
+    out_1: File containing one random integer number
+    out_2: integer number
+
+
+    command line:
+      
+        ./sleeper in_1 in_2 out_1 out_2
+
+    
+    in_1 is passed as path to file
+    in_2 is passed as number
+    out_1 is written to file
+    out_2 is written to file output.json
+
+*/
+
 int main(int argc, char const *argv[])
 {
     std::string input_filename;

@@ -126,13 +126,13 @@ class Sidecar(object):
             if isinstance(port_value, str) and port_value.startswith("link."):
                 if port['type'] == 'file-url':
                     print('Fetch S3 {}'.format(port_value))
-                    object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[:1])
+                    object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[1:])
                     input_file = os.path.join(self.shared_input_folder, port_name)
-                    if self.s3_client.exists_object(S3_BUCKET_NAME, object, True):
+                    if self.s3_client.exists_object(S3_BUCKET_NAME, object_name, True):
                         self.s3_client.download_file(S3_BUCKET_NAME, object_name, input_file)
                         input_ports[port_name] = port_name
                     else:
-                        print("ERROR, input port {} not found in S3".format(port_value))
+                        print("ERROR, input port {} not found in S3".format(object_name))
                         input_ports[port_name] = None
                 else:
                     print('Fetch DB {}'.format(port_value))                    
@@ -192,7 +192,6 @@ class Sidecar(object):
     def _process_task_output(self):
         """ There will be some files in the /output
         
-                - Maybe a output.log (redirected stdout)
                 - Maybe a output.json (should contain key value for simple things)
                 - other files: should be named by the key in the output port
 
@@ -218,11 +217,30 @@ class Sidecar(object):
                                 if to['key'] in output_ports.keys():
                                     to['value'] = output_ports[to['key']]
                     else:
-                        object_name = str(self.task.pipeline_id) + "/" + self.task.job_id + "/" + name
+                        object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/" + name
                         self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
             self.session.add(self.task)
             self.session.commit()
 
+        except:
+            import traceback
+            traceback.print_exc()
+            return -2
+
+    def _process_task_log(self):
+        """ There will be some files in the /log
+                
+                - put them all into S3 /log
+        """
+        directory = self.shared_log_folder
+        if not os.path.exists(directory):
+            return
+        try:
+            for root, _dirs, files in os.walk(directory):
+                for name in files:
+                    filepath = os.path.join(root, name)
+                    object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/log/" + name
+                    self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
         except:
             import traceback
             traceback.print_exc()
@@ -285,6 +303,8 @@ class Sidecar(object):
         print('Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         
         self._process_task_output()
+        self._process_task_log()
+        
         self.task.state = SUCCESS
         self.session.add(self.task)
         self.session.commit()
