@@ -18,6 +18,7 @@ from celery.signals import (after_setup_logger, task_failure, task_postrun,
 from celery.states import SUCCESS
 from sqlalchemy import and_, exc, create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.attributes import flag_modified
 
 from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
                              ComputationalPipeline, ComputationalTask)
@@ -208,6 +209,7 @@ class Sidecar(object):
                     # the name should match what is in the db!
 
                     if name == 'output.json':
+                        print("POSTRO FOUND output.json")
                         # parse and compare/update with the tasks output ports from db
                         output_ports = dict()                        
                         with open(filepath) as f:
@@ -216,11 +218,15 @@ class Sidecar(object):
                             for to in task_outputs:
                                 if to['key'] in output_ports.keys():
                                     to['value'] = output_ports[to['key']]
+                                    print("POSTRPO to['value]' becomes{}".format(output_ports[to['key']]))
+                                    flag_modified(self.task, "output")
+                                    self.session.commit()
                     else:
                         object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/" + name
+                        print("POSTRO pushes to S3 {}".format(object_name))              
                         self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
-            self.session.add(self.task)
-            self.session.commit()
+            
+            
 
         except:
             import traceback
@@ -304,7 +310,7 @@ class Sidecar(object):
         
         self._process_task_output()
         self._process_task_log()
-        
+
         self.task.state = SUCCESS
         self.session.add(self.task)
         self.session.commit()

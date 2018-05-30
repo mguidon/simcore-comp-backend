@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include <stdlib.h> 
+#include <time.h> 
 
 #include "json.hpp"
 #include "cxxopts.hpp"
@@ -40,15 +41,24 @@ using json = nlohmann::json;
 
 int main(int argc, char *argv[])
 {
-
+    std::cout << "Reiceved the following command line line arguments" << std::endl;
+    
+    for(int i = 0; i < argc; ++i)
+    {
+        std::cout << argv[i] << std::endl;
+    }
+	
     cxxopts::Options options("Sleeper", "I am lazy");
 
     options.add_options()
         ("in_1", "path input file", cxxopts::value<std::string>())
         ("in_2", "integer number", cxxopts::value<int>())
-        ("out_1","path to output file", cxxopts::value<std::string>());
+        ("out_1","path to output file 1", cxxopts::value<std::string>())
+        ("out_2","path to output file 2", cxxopts::value<std::string>());
 
     auto result = options.parse(argc, argv);
+
+    srand (time(NULL));
 
     int in_1 = rand() % 8 + 1;
     int in_2 = rand() % 8 + 1;
@@ -72,6 +82,13 @@ int main(int argc, char *argv[])
     {
         out_1_filename = result["out_1"].as<std::string>();
         std::cout << "out_1:\t" << out_1_filename << std::endl;
+    }    
+
+    std::string out_2_filename;
+    if (result.count("out_2"))
+    {
+        out_2_filename = result["out_2"].as<std::string>();
+        std::cout << "out_2:\t" << out_2_filename << std::endl;
     }    
 
     int N = (in_1 + in_2) / 2;
@@ -103,7 +120,7 @@ int main(int argc, char *argv[])
 
     joutput["out_2"] = rand() % 8 + 1;
 
-    std::ofstream of("output.json");
+    std::ofstream of(out_2_filename);
     of << joutput;
 
     return 0;

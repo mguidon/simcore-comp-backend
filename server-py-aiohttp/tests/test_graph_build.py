@@ -40,7 +40,6 @@ def test_pipeline_generation():
     nodes = mockup['nodes']
     links = mockup['links']
 
-
     dag_adjacency_list = dict()
     tasks = dict()
     for node in nodes:
@@ -49,6 +48,8 @@ def test_pipeline_generation():
         successor_nodes = []
         task = {}
         task["input"] = node["inputs"]
+        print(type(task['input']))
+        
         task["output"] = node["outputs"]
         task["image"] = { "name" : "masu.speag.com/simcore/services/comp/sleeper",
                           "tag"  : "1.0"}
