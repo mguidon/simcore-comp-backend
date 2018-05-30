@@ -103,3 +103,5 @@ ENV/
 
 # code project settings
 .vscode
+random_sleeper/code/log.dat
+random_sleeper/code/sleeper
