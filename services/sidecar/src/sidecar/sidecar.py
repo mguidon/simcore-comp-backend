@@ -20,9 +20,10 @@ from sqlalchemy import and_, exc, create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
-from pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
+
+from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
                              ComputationalPipeline, ComputationalTask)
-from s3_client import S3Client
+from s3wrapper.s3_client import S3Client
 
 import ptvsd
 ptvsd.enable_attach('my_secret', address=('0.0.0.0', 3000))
