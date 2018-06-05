@@ -19,7 +19,7 @@ services:
       - PYTHONPATH=/usr/src/models
     volumes:
       - ./server-py-aiohttp:/usr/src/app
-      - ./models:/usr/src/models
+      - ../modules/simcore_sdk/models:/usr/src/models
       - ./client-qx/source-output:/usr/src/app/client
     depends_on: 
       - client-qx
@@ -45,9 +45,9 @@ services:
       - input:/input
       - output:/output
       - log:/log
-      - ./sidecar:/work/sidecar
-      - ./models:/work/models
-      - ./s3wrapper:/work/s3wrapper
+      - ./sidecar/src/sidecar:/work/sidecar
+      - ../modules/simcore_sdk/models:/work/models
+      - ../modules/s3wrapper/src/s3wrapper:/work/s3wrapper
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"

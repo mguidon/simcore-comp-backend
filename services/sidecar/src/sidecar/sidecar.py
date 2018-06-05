@@ -286,9 +286,9 @@ class Sidecar(object):
             docker_image = self.docker_image_name + ":" + self.docker_image_tag 
             self.docker_client.containers.run(docker_image, "run", 
                  detach=False, remove=True,
-                 volumes = {'simcorecompbackend_input'  : {'bind' : '/input'}, 
-                            'simcorecompbackend_output' : {'bind' : '/output'},
-                            'simcorecompbackend_log'    : {'bind'  : '/log'}},
+                 volumes = {'services_input'  : {'bind' : '/input'}, 
+                            'services_output' : {'bind' : '/output'},
+                            'services_log'    : {'bind'  : '/log'}},
                  environment=self.docker_env)
         except Exception as e:
             print(e)
