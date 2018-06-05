@@ -25,15 +25,14 @@ from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, 
                              ComputationalPipeline, ComputationalTask)
 from s3wrapper.s3_client import S3Client
 
-import ptvsd
-ptvsd.enable_attach('my_secret', address=('0.0.0.0', 3000))
-print('ptvsd is started')
+from config.pika_config import Config as pika_config
+from config.docker_config import Config as docker_config
 
 env = os.environ
 RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
 RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
-RABBITMQ_LOG_CHANNEL = env.get('RABBITMQ_LOG_CHANNEL','comp.backend.channels.log')
-RABBITMQ_PROGRESS_CHANNEL = env.get('RABBITMQ_PROGRESS_CHANNEL','comp.backend.channels.progress')
+#RABBITMQ_LOG_CHANNEL = env.get('RABBITMQ_LOG_CHANNEL','comp.backend.channels.log')
+#RABBITMQ_PROGRESS_CHANNEL = env.get('RABBITMQ_PROGRESS_CHANNEL','comp.backend.channels.progress')
 RABBITMQ_HOST="rabbit"
 RABBITMQ_PORT=5672
 
@@ -45,9 +44,6 @@ CELERY_RESULT_BACKEND=env.get('CELERY_RESULT_BACKEND','rpc://')
 celery= Celery('tasks',
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND)
-
-credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=credentials, connection_attempts=100)
 
 POSTGRES_URL = "postgres:5432"
 POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
@@ -65,15 +61,17 @@ S3_BUCKET_NAME = env.get("S3_BUCKET_NAME", "")
 class Sidecar(object):
     def __init__(self):
         # publish subscribe config
-        self._pika_credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-        self._pika_parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, 
-            port=RABBITMQ_PORT, credentials=self._pika_credentials, connection_attempts=100)
+        self._pika_config = pika_config()
+        self._pika_parameters = self._pika_config.parameters()
+        self._pika_log_channel = self._pika_config.log_channel()
+        self._pika_progress_channel = self._pika_config.progress_channel()
 
         # docker client config
+        self._docker_config = docker_config()
         self.docker_client = docker.from_env(version='auto')
-        self.docker_registry = "masu.speag.com/v2"
-        self.docker_registry_user = "z43"
-        self.docker_registry_pwd = "z43"
+        self.docker_registry = self._docker_config.registry()
+        self.docker_registry_user = self._docker_config.user()
+        self.docker_registry_pwd = self._docker_config.pwd()
 
         # object storage config
         self.s3_client = S3Client(endpoint=S3_ENDPOINT, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY)
@@ -164,8 +162,8 @@ class Sidecar(object):
         connection = pika.BlockingConnection(self._pika_parameters)
 
         channel = connection.channel()
-        channel.exchange_declare(exchange=RABBITMQ_LOG_CHANNEL, exchange_type='fanout')
-        channel.exchange_declare(exchange=RABBITMQ_PROGRESS_CHANNEL, exchange_type='fanout')
+        channel.exchange_declare(exchange=self._pika_log_channel, exchange_type='fanout')
+        channel.exchange_declare(exchange=self._pika_progress_channel, exchange_type='fanout')
 
         with open(log_file) as file_:
             # Go to the end of file
@@ -182,11 +180,11 @@ class Sidecar(object):
                         progress = clean_line.lower().lstrip("[progress]").rstrip("%").strip()
                         prog_data = {"Channel" : "Progress", "Node": task.internal_id, "Progress" : progress}
                         prog_body = json.dumps(prog_data)
-                        channel.basic_publish(exchange=RABBITMQ_PROGRESS_CHANNEL, routing_key='', body=prog_body)
+                        channel.basic_publish(exchange=self._pika_progress_channel, routing_key='', body=prog_body)
                     else:
                         log_data = {"Channel" : "Log", "Node": task.internal_id, "Message" : clean_line}
                         log_body = json.dumps(log_data)
-                        channel.basic_publish(exchange=RABBITMQ_LOG_CHANNEL, routing_key='', body=log_body)
+                        channel.basic_publish(exchange=self._pika_log_channel, routing_key='', body=log_body)
 
 
         connection.close()

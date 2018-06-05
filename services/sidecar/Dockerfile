@@ -14,5 +14,5 @@ WORKDIR /work/sidecar
 # RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # NO clue why this does not work without explicitly specifying
-ENV PYTHONPATH="/work/modules/simcore_sdk/models/src:/work/modules/s3wrapper/src"
+ENV PYTHONPATH="/work/modules/simcore_sdk/models/src:/work/modules/s3wrapper/src:/work/modules/simcore_sdk/"
 ENTRYPOINT celery -A sidecar worker -c 2 --loglevel=info
