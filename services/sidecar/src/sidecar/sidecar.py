@@ -29,17 +29,18 @@ from config.pika_config import Config as pika_config
 from config.docker_config import Config as docker_config
 from config.rabbit_config import Config as rabbit_config
 from config.s3_config import Config as s3_config
+from config.db_config import Config as db_config
 
 env = os.environ
 rc = rabbit_config()
 celery= Celery(rc.name(), broker=rc.broker(), backend=rc.backend())
 
-POSTGRES_URL = "postgres:5432"
-POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
-POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
-POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
-
-DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
+#POSTGRES_URL = "postgres:5432"
+#POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
+#POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
+#POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
+#
+#DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
 
 
 class Sidecar(object):
@@ -59,14 +60,15 @@ class Sidecar(object):
 
         # object storage config
         self._s3_config = s3_config()
-        self.s3_client = S3Client(endpoint=self._s3_config.endpoint,
-            access_key=self._s3_config.access_key, secret_key=self._s3_config.secret_key)
-        self.s3_bucket = self._s3_config.bucket_name
+        self.s3_client = S3Client(endpoint=self._s3_config.endpoint(),
+            access_key=self._s3_config.access_key(), secret_key=self._s3_config.secret_key())
+        self.s3_bucket = self._s3_config.bucket_name()
         self.s3_client.create_bucket(self.s3_bucket)
 
 
         # db config
-        self.db = create_engine(DB_URL, client_encoding='utf8')
+        self._db_config = db_config()
+        self.db = create_engine(self._db_config.endpoint(), client_encoding='utf8')
         self.Session = sessionmaker(self.db)
         self.session = self.Session()
 
@@ -116,8 +118,10 @@ class Sidecar(object):
                     print('Fetch S3 {}'.format(port_value))
                     object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[1:])
                     input_file = os.path.join(self.shared_input_folder, port_name)
+                    print('Downlaoding from  S3 {}/{}'.format(self.s3_bucket, object_name))
                     if self.s3_client.exists_object(self.s3_bucket, object_name, True):
                         self.s3_client.download_file(self.s3_bucket, object_name, input_file)
+                        print('Downlaoding to {} DONE'.format(input_file))
                         input_ports[port_name] = port_name
                     else:
                         print("ERROR, input port {} not found in S3".format(object_name))
@@ -211,7 +215,7 @@ class Sidecar(object):
                     else:
                         object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/" + name
                         print("POSTRO pushes to S3 {}".format(object_name))              
-                        self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
+                        self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
             
             
 
@@ -233,7 +237,7 @@ class Sidecar(object):
                 for name in files:
                     filepath = os.path.join(root, name)
                     object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/log/" + name
-                    self.s3_client.upload_file(S3_BUCKET_NAME, object_name, filepath)
+                    self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
         except:
             import traceback
             traceback.print_exc()
