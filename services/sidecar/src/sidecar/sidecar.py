@@ -27,23 +27,12 @@ from s3wrapper.s3_client import S3Client
 
 from config.pika_config import Config as pika_config
 from config.docker_config import Config as docker_config
+from config.rabbit_config import Config as rabbit_config
+from config.s3_config import Config as s3_config
 
 env = os.environ
-RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
-RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
-#RABBITMQ_LOG_CHANNEL = env.get('RABBITMQ_LOG_CHANNEL','comp.backend.channels.log')
-#RABBITMQ_PROGRESS_CHANNEL = env.get('RABBITMQ_PROGRESS_CHANNEL','comp.backend.channels.progress')
-RABBITMQ_HOST="rabbit"
-RABBITMQ_PORT=5672
-
-AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url=RABBITMQ_HOST, port=RABBITMQ_PORT)
-
-CELERY_BROKER_URL = AMQ_URL
-CELERY_RESULT_BACKEND=env.get('CELERY_RESULT_BACKEND','rpc://')
-
-celery= Celery('tasks',
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND)
+rc = rabbit_config()
+celery= Celery(rc.name(), broker=rc.broker(), backend=rc.backend())
 
 POSTGRES_URL = "postgres:5432"
 POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
@@ -51,11 +40,6 @@ POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
 POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
 
 DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
-
-S3_ENDPOINT = env.get("S3_ENDPOINT", "")
-S3_ACCESS_KEY = env.get("S3_ACCESS_KEY", "")
-S3_SECRET_KEY = env.get("S3_SECRET_KEY", "")
-S3_BUCKET_NAME = env.get("S3_BUCKET_NAME", "")
 
 
 class Sidecar(object):
@@ -74,8 +58,12 @@ class Sidecar(object):
         self.docker_registry_pwd = self._docker_config.pwd()
 
         # object storage config
-        self.s3_client = S3Client(endpoint=S3_ENDPOINT, access_key=S3_ACCESS_KEY, secret_key=S3_SECRET_KEY)
-        self.s3_client.create_bucket(S3_BUCKET_NAME)
+        self._s3_config = s3_config()
+        self.s3_client = S3Client(endpoint=self._s3_config.endpoint,
+            access_key=self._s3_config.access_key, secret_key=self._s3_config.secret_key)
+        self.s3_bucket = self._s3_config.bucket_name
+        self.s3_client.create_bucket(self.s3_bucket)
+
 
         # db config
         self.db = create_engine(DB_URL, client_encoding='utf8')
@@ -128,8 +116,8 @@ class Sidecar(object):
                     print('Fetch S3 {}'.format(port_value))
                     object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[1:])
                     input_file = os.path.join(self.shared_input_folder, port_name)
-                    if self.s3_client.exists_object(S3_BUCKET_NAME, object_name, True):
-                        self.s3_client.download_file(S3_BUCKET_NAME, object_name, input_file)
+                    if self.s3_client.exists_object(self.s3_bucket, object_name, True):
+                        self.s3_client.download_file(self.s3_bucket, object_name, input_file)
                         input_ports[port_name] = port_name
                     else:
                         print("ERROR, input port {} not found in S3".format(object_name))
