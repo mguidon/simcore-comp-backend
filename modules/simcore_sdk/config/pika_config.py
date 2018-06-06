@@ -22,11 +22,14 @@ class Config():
         self._log_channel = RABBITMQ_LOG_CHANNEL
         self._progress_channel = RABBITMQ_PROGRESS_CHANNEL
 
+    @property
     def parameters(self):
         return self._pika_parameters
 
+    @property
     def log_channel(self):
         return self._log_channel
 
+    @property
     def progress_channel(self):
         return self._progress_channel

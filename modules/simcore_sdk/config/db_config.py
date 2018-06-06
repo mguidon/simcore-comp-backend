@@ -17,6 +17,7 @@ class Config():
         self._db = POSTGRES_DB
         self._endpoint = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
             user=self._user, pw=self._pwd, url=self._url, db=self._db)
-
+            
+    @property
     def endpoint(self):
         return self._endpoint

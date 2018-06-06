@@ -20,11 +20,14 @@ class Config():
         self._result_backend = CELERY_RESULT_BACKEND
         self._module_name = "tasks"
     
+    @property
     def broker(self):
         return self._broker_url
 
+    @property
     def backend(self):
         return self._result_backend
 
+    @property
     def name(self):
         return self._module_name

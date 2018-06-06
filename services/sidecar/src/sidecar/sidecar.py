@@ -16,59 +16,49 @@ from celery.result import AsyncResult
 from celery.signals import (after_setup_logger, task_failure, task_postrun,
                             task_prerun)
 from celery.states import SUCCESS
-from sqlalchemy import and_, exc, create_engine
+from sqlalchemy import and_, create_engine, exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
-
-from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN, Base,
-                             ComputationalPipeline, ComputationalTask)
-from s3wrapper.s3_client import S3Client
-
-from config.pika_config import Config as pika_config
+from config.db_config import Config as db_config
 from config.docker_config import Config as docker_config
+from config.pika_config import Config as pika_config
 from config.rabbit_config import Config as rabbit_config
 from config.s3_config import Config as s3_config
-from config.db_config import Config as db_config
+from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
+                                    Base, ComputationalPipeline,
+                                    ComputationalTask)
+from s3wrapper.s3_client import S3Client
 
 env = os.environ
 rc = rabbit_config()
-celery= Celery(rc.name(), broker=rc.broker(), backend=rc.backend())
-
-#POSTGRES_URL = "postgres:5432"
-#POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
-#POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
-#POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
-#
-#DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
-
+celery= Celery(rc.name, broker=rc.broker, backend=rc.backend)
 
 class Sidecar(object):
     def __init__(self):
         # publish subscribe config
         self._pika_config = pika_config()
-        self._pika_parameters = self._pika_config.parameters()
-        self._pika_log_channel = self._pika_config.log_channel()
-        self._pika_progress_channel = self._pika_config.progress_channel()
+        self._pika_parameters = self._pika_config.parameters
+        self._pika_log_channel = self._pika_config.log_channel
+        self._pika_progress_channel = self._pika_config.progress_channel
 
         # docker client config
         self._docker_config = docker_config()
         self.docker_client = docker.from_env(version='auto')
-        self.docker_registry = self._docker_config.registry()
-        self.docker_registry_user = self._docker_config.user()
-        self.docker_registry_pwd = self._docker_config.pwd()
+        self.docker_registry = self._docker_config.registry
+        self.docker_registry_user = self._docker_config.user
+        self.docker_registry_pwd = self._docker_config.pwd
 
         # object storage config
         self._s3_config = s3_config()
-        self.s3_client = S3Client(endpoint=self._s3_config.endpoint(),
-            access_key=self._s3_config.access_key(), secret_key=self._s3_config.secret_key())
-        self.s3_bucket = self._s3_config.bucket_name()
+        self.s3_client = S3Client(endpoint=self._s3_config.endpoint,
+            access_key=self._s3_config.access_key, secret_key=self._s3_config.secret_key)
+        self.s3_bucket = self._s3_config.bucket_name
         self.s3_client.create_bucket(self.s3_bucket)
-
 
         # db config
         self._db_config = db_config()
-        self.db = create_engine(self._db_config.endpoint(), client_encoding='utf8')
+        self.db = create_engine(self._db_config.endpoint, client_encoding='utf8')
         self.Session = sessionmaker(self.db)
         self.session = self.Session()
 
