@@ -1,4 +1,5 @@
 import requests
+import pytest
 from pytest_docker import docker_ip, docker_services
 
 from requests.exceptions import (

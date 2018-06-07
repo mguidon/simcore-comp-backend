@@ -12,6 +12,10 @@ before_install:
   - lsb_release -a
   - docker --version
   - docker-compose --version
+  # shutdown postgres 
+  - sudo service postgresql stop
+  # wait for postgresql to shutdown
+  - while sudo lsof -Pi :5432 -sTCP:LISTEN -t; do sleep 1; done
 
 install:
   - pip install pytest-cov
