@@ -11,7 +11,7 @@ import uuid
 import json
 import datetime
 
-from setup import *
+from comp_backend_setup import *
 
 comp_backend_routes = web.RouteTableDef()
 

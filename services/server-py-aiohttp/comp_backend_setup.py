@@ -15,25 +15,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from models.pipeline_models import Base, ComputationalPipeline, ComputationalTask
-from worker import celery
+from comp_backend_worker import celery
 
 from async_sio import sio
+from config.db_config import Config as db_config
 
-env = os.environ
 
-POSTGRES_URL = "postgres:5432"
-POSTGRES_USER = env.get("POSTGRES_USER", "simcore")
-POSTGRES_PW = env.get("POSTGRES_PASSWORD", "simcore")
-POSTGRES_DB = env.get("POSTGRES_DB", "simcoredb")
-
-DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER, pw=POSTGRES_PW, url=POSTGRES_URL, db=POSTGRES_DB)
-
-db = create_engine(DB_URL, client_encoding='utf8')
-
+ # db config
+db_config = db_config()
+db = create_engine(db_config.endpoint, client_encoding='utf8')
 Session = sessionmaker(db)
 session = Session()
-
 Base.metadata.create_all(db)
+
+# rabbit config
+
 
 RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
 RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
@@ -54,7 +50,7 @@ async def on_message(message: aio_pika.IncomingMessage):
             #print(data["Progress"])
             await sio.emit("progress", data = json.dumps(data))
 
-async def connect_to_rabbit():
+async def subscribe():
     connection = await aio_pika.connect(AMQ_URL,connection_attempts=100)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=1)

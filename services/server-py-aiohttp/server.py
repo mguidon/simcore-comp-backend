@@ -15,7 +15,7 @@ from config import CONFIG
 from registry_api import registry_routes
 from comp_backend_api import comp_backend_routes
 
-from setup import connect_to_rabbit
+from comp_backend_setup import subscribe
 import asyncio
 
 def create_app(args=()):
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     _CONFIG = CONFIG[os.environ.get('SIMCORE_WEB_CONFIG', 'default')]
     app = create_app()
     loop = asyncio.get_event_loop()
-    loop.create_task(connect_to_rabbit())
+    loop.create_task(subscribe())
     web.run_app(app,
                 host=_CONFIG.SIMCORE_WEB_HOSTNAME,
                 port=_CONFIG.SIMCORE_WEB_PORT)
