@@ -20,11 +20,11 @@ from sqlalchemy import and_, create_engine, exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
-from config.db_config import Config as db_config
-from config.docker_config import Config as docker_config
-from config.pika_config import Config as pika_config
-from config.rabbit_config import Config as rabbit_config
-from config.s3_config import Config as s3_config
+from simcore_sdk.config.db_config import Config as db_config
+from simcore_sdk.config.docker_config import Config as docker_config
+from simcore_sdk.config.pika_config import Config as pika_config
+from simcore_sdk.config.rabbit_config import Config as rabbit_config
+from simcore_sdk.config.s3_config import Config as s3_config
 from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
                                     Base, ComputationalPipeline,
                                     ComputationalTask)
@@ -109,10 +109,17 @@ class Sidecar(object):
                     object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[1:])
                     input_file = os.path.join(self.shared_input_folder, port_name)
                     print('Downlaoding from  S3 {}/{}'.format(self.s3_bucket, object_name))
-                    if self.s3_client.exists_object(self.s3_bucket, object_name, True):
-                        self.s3_client.download_file(self.s3_bucket, object_name, input_file)
-                        print('Downlaoding to {} DONE'.format(input_file))
+                    #if self.s3_client.exists_object(self.s3_bucket, object_name, True):
+                    success = False
+                    ntry = 3
+                    trial = 0
+                    while not success and trial < ntry:
+                        print('Downloading to {} trial {} from {}'.format(input_file, trial, ntry))
+                        success = self.s3_client.download_file(self.s3_bucket, object_name, input_file)
+                        trial = trial + 1
+                    if success:
                         input_ports[port_name] = port_name
+                        print("DONWLOAD successfull {}".format(port_name))
                     else:
                         print("ERROR, input port {} not found in S3".format(object_name))
                         input_ports[port_name] = None
@@ -204,10 +211,13 @@ class Sidecar(object):
                                     self.session.commit()
                     else:
                         object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/" + name
-                        print("POSTRO pushes to S3 {}".format(object_name))              
-                        self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
-            
-            
+                        success = False
+                        ntry = 3
+                        trial = 0
+                        while not success and trial < ntry:
+                            print("POSTRO pushes to S3 {}, try {} from {}".format(object_name, ntry, trial))
+                            success = self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
+                            trial = trial + 1
 
         except:
             import traceback

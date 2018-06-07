@@ -18,8 +18,9 @@ from models.pipeline_models import Base, ComputationalPipeline, ComputationalTas
 from comp_backend_worker import celery
 
 from async_sio import sio
-from config.db_config import Config as db_config
-
+from simcore_sdk.config.db_config import Config as db_config
+from simcore_sdk.config.pika_config import Config as pika_config
+from simcore_sdk.config.rabbit_config import Config as rabbit_config
 
  # db config
 db_config = db_config()
@@ -28,17 +29,12 @@ Session = sessionmaker(db)
 session = Session()
 Base.metadata.create_all(db)
 
-# rabbit config
-
-
-RABBITMQ_USER = env.get('RABBITMQ_USER','simcore')
-RABBITMQ_PASSWORD = env.get('RABBITMQ_PASSWORD','simcore')
-RABBITMQ_LOG_CHANNEL = env.get('RABBITMQ_LOG_CHANNEL','comp.backend.channels.log')
-RABBITMQ_PROGRESS_CHANNEL = env.get('RABBITMQ_PROGRESS_CHANNEL','comp.backend.channels.progress')
-RABBITMQ_HOST="rabbit"
-RABBITMQ_PORT=5672
-
-AMQ_URL = 'amqp://{user}:{pw}@{url}:{port}'.format(user=RABBITMQ_USER, pw=RABBITMQ_PASSWORD, url=RABBITMQ_HOST, port=RABBITMQ_PORT)
+# pika config
+pika_config = pika_config()
+pika_log_channel = pika_config.log_channel
+pika_progress_channel = pika_config.progress_channel
+rabbit_config = rabbit_config()
+rabbit_broker = rabbit_config.broker
 
 async def on_message(message: aio_pika.IncomingMessage):
     with message.process():
@@ -51,16 +47,16 @@ async def on_message(message: aio_pika.IncomingMessage):
             await sio.emit("progress", data = json.dumps(data))
 
 async def subscribe():
-    connection = await aio_pika.connect(AMQ_URL,connection_attempts=100)
+    connection = await aio_pika.connect(rabbit_broker, connection_attempts=100)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=1)
     
     logs_exchange = await channel.declare_exchange(
-        RABBITMQ_LOG_CHANNEL, aio_pika.ExchangeType.FANOUT
+        pika_log_channel, aio_pika.ExchangeType.FANOUT
     )
 
     progress_exchange = await channel.declare_exchange(
-        RABBITMQ_PROGRESS_CHANNEL, aio_pika.ExchangeType.FANOUT
+        pika_progress_channel, aio_pika.ExchangeType.FANOUT
     )
 
     # Declaring queue

@@ -131,6 +131,8 @@ class S3Client(object):
         return True
 
     def exists_object(self, bucket_name, object_name, recursive=False):
+        ''' This seems to be pretty heavy, should be used with care
+        '''
         try:
             objects = self.list_objects(bucket_name, recursive)
             for obj in objects:
