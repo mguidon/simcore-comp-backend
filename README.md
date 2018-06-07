@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/mguidon/simcore-comp-backend.svg?branch=reintegration)](https://travis-ci.org/mguidon/simcore-comp-backend)
 
 
-[![codecov](https://codecov.io/gh/mguidon/simcore-comp-backend/branch/master/graph/badge.svg)](https://codecov.io/gh/mguidon/simcore-comp-backend)
+[![Coverage Status](https://coveralls.io/repos/github/mguidon/simcore-comp-backend/badge.svg)](https://coveralls.io/github/mguidon/simcore-comp-backend)
 
 
 ## Overview
