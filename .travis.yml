@@ -12,13 +12,15 @@ before_install:
 install:
   - pip install pytest-cov
   - pip install coveralls
+  - pip install pytest-docker
   - pip --version
 
 before_script:
-  - export PYTHONPATH=${PYTHONPATH}:${TRAVIS_BUILD_DIR}/src
+  - export PYTHONPATH=${PYTHONPATH}:${TRAVIS_BUILD_DIR}/modules/s3wrapper/src
 
 script:
-  - pytest modules/ci_test
+  - pytest -v -m enable_travis modules/pytest_docker/
+  - pytest -v -m enable_travis modules/s3wrapper/
 
 after_success:
   - coveralls

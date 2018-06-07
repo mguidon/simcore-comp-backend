@@ -8,16 +8,50 @@ import urllib
 import time
 from datetime import timedelta
 
-
 import s3wrapper
 from s3wrapper.s3_client import S3Client
 
+import requests
+from pytest_docker import docker_ip, docker_services
 
+from requests.exceptions import (
+    ConnectionError,
+)
+
+def is_responsive(url, code=200):
+    """Check if something responds to ``url``."""
+    try:
+        response = requests.get(url)
+        if response.status_code == code:
+            return True
+        
+    except ConnectionError:
+        return False
+   
 @pytest.fixture(scope="module")
-def s3_client():
-    endpoint = os.getenv("MINIO_HOST")
-    access_key = os.getenv("MINIO_ACCESS_KEY")
-    secret_key = os.getenv("MINIO_SECRET_KEY")
+def s3_client(docker_ip, docker_services):
+    """wait for minio to be up"""
+
+    # Build URL to service listening on random port.
+    url = 'http://%s:%d/' % (
+        docker_ip,
+        docker_services.port_for('minio', 9000),
+    )
+    print(url)
+    # Wait until service is responsive.
+    docker_services.wait_until_responsive(
+        check=lambda: is_responsive(url, 403),
+        timeout=30.0,
+        pause=0.1,
+    )
+
+    # Contact the service.
+    response = requests.get(url)
+    assert response.status_code == 403
+
+    endpoint = '{ip}:{port}'.format(ip=docker_ip, port=docker_services.port_for('minio', 9000))
+    access_key = "12345678"
+    secret_key = "12345678"
     secure = False
     s3_client = S3Client(endpoint, access_key, secret_key, secure)
     return s3_client
@@ -45,6 +79,7 @@ def text_files(tmpdir_factory):
         return filepaths
     return _create_files
 
+@pytest.mark.enable_travis
 def test_create_remove_bucket(s3_client):
     bucket_name = "simcore-test"
     s3_client.create_bucket(bucket_name)
@@ -52,6 +87,7 @@ def test_create_remove_bucket(s3_client):
     s3_client.remove_bucket(bucket_name, delete_contents=True)
     assert not s3_client.exists_bucket(bucket_name)
 
+@pytest.mark.enable_travis
 def test_create_remove_bucket_with_contents(s3_client, text_files):
     bucket_name = "simcore-test"
     s3_client.create_bucket(bucket_name)
@@ -64,6 +100,7 @@ def test_create_remove_bucket_with_contents(s3_client, text_files):
     s3_client.remove_bucket(bucket_name, delete_contents=True)
     assert not s3_client.exists_bucket(bucket_name)
 
+@pytest.mark.enable_travis
 def test_file_upload_download(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "1"
@@ -72,6 +109,7 @@ def test_file_upload_download(s3_client, bucket, text_files):
     assert s3_client.download_file(bucket, object_name ,filepath2)
     assert filecmp.cmp(filepath2, filepath)
 
+@pytest.mark.enable_travis
 def test_file_upload_meta_data(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "1"
@@ -86,6 +124,7 @@ def test_file_upload_meta_data(s3_client, bucket, text_files):
     assert metadata2["Node_id"] == str(id)
     assert metadata2["Boom-Boom"] == str(42.0)
 
+@pytest.mark.enable_travis
 def test_sub_folders(s3_client, bucket, text_files):
     bucket_sub_folder = str(uuid.uuid4())
     filepaths = text_files(3)
@@ -95,6 +134,7 @@ def test_sub_folders(s3_client, bucket, text_files):
         assert s3_client.upload_file(bucket, object_name, f)
         counter += 1
 
+@pytest.mark.enable_travis
 def test_search(s3_client, bucket, text_files):
     metadata = [ {'User' : 'alpha'}, {'User' : 'beta' }, {'User' : 'gamma'}]
 
@@ -123,6 +163,7 @@ def test_search(s3_client, bucket, text_files):
     results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
     assert len(results) == 9
 
+@pytest.mark.enable_travis
 def test_presigned_put(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "my_file"
@@ -137,6 +178,7 @@ def test_presigned_put(s3_client, bucket, text_files):
     assert s3_client.download_file(bucket, object_name, filepath2)
     assert filecmp.cmp(filepath2, filepath)
 
+@pytest.mark.enable_travis
 def test_presigned_put_expired(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "my_file"
@@ -153,6 +195,7 @@ def test_presigned_put_expired(s3_client, bucket, text_files):
     assert failed
 
 
+@pytest.mark.enable_travis
 def test_presigned_get(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     filepath2 = filepath + "."
@@ -163,6 +206,7 @@ def test_presigned_get(s3_client, bucket, text_files):
 
     assert filecmp.cmp(filepath2, filepath)
 
+@pytest.mark.enable_travis
 def test_presigned_get_expired(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     filepath2 = filepath + "."
@@ -178,6 +222,7 @@ def test_presigned_get_expired(s3_client, bucket, text_files):
 
     assert failed
 
+@pytest.mark.enable_travis
 def test_object_exists(s3_client, bucket, text_files):
     files = text_files(2)
     file1 = files[0]
