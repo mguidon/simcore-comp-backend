@@ -8,6 +8,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import logging
 
 import docker
 import pika
@@ -29,10 +30,17 @@ from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
                                     Base, ComputationalPipeline,
                                     ComputationalTask)
 from s3wrapper.s3_client import S3Client
+from celery.utils.log import get_task_logger
 
-env = os.environ
 rc = rabbit_config()
 celery= Celery(rc.name, broker=rc.broker, backend=rc.backend)
+
+
+logging.basicConfig(level=logging.DEBUG)
+#_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_task_logger(__name__)
+_LOGGER.setLevel(logging.DEBUG)
+
 
 class Sidecar(object):
     def __init__(self):
@@ -66,7 +74,6 @@ class Sidecar(object):
         self.pool = ThreadPoolExecutor(1)
 
         self.task = None
-        
 
     def _delete_contents(self, folder):
         for file in os.listdir(folder):
@@ -76,7 +83,7 @@ class Sidecar(object):
                     os.unlink(file_path)
                 elif os.path.isdir(file_path): shutil.rmtree(file_path)
             except Exception as e:
-                print(e)
+                _LOGGER.debug(e)
 
     def _create_shared_folders(self):
         for folder in [self.shared_input_folder, self.shared_log_folder, self.shared_output_folder]:
@@ -95,42 +102,43 @@ class Sidecar(object):
             as port['key']. Both end up in /input/ of the container
         """
         input = self.task.input
-        print('Input parsing for {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
-        print(input)
+        _LOGGER.debug('Input parsing for {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        _LOGGER.debug(input)
+
         input_ports = dict()
         for port in input:
-            print(port)
+            _LOGGER.debug(port)
             port_name = port['key']
             port_value = port['value']
-            print(type(port_value))
+            _LOGGER.debug(type(port_value))
             if isinstance(port_value, str) and port_value.startswith("link."):
                 if port['type'] == 'file-url':
-                    print('Fetch S3 {}'.format(port_value))
+                    _LOGGER.debug('Fetch S3 {}'.format(port_value))
                     object_name = os.path.join(str(self.task.pipeline_id),*port_value.split(".")[1:])
                     input_file = os.path.join(self.shared_input_folder, port_name)
-                    print('Downlaoding from  S3 {}/{}'.format(self.s3_bucket, object_name))
+                    _LOGGER.debug('Downlaoding from  S3 {}/{}'.format(self.s3_bucket, object_name))
                     #if self.s3_client.exists_object(self.s3_bucket, object_name, True):
                     success = False
                     ntry = 3
                     trial = 0
                     while not success and trial < ntry:
-                        print('Downloading to {} trial {} from {}'.format(input_file, trial, ntry))
+                        _LOGGER.debug('Downloading to {} trial {} from {}'.format(input_file, trial, ntry))
                         success = self.s3_client.download_file(self.s3_bucket, object_name, input_file)
                         trial = trial + 1
                     if success:
                         input_ports[port_name] = port_name
-                        print("DONWLOAD successfull {}".format(port_name))
+                        _LOGGER.debug("DONWLOAD successfull {}".format(port_name))
                     else:
-                        print("ERROR, input port {} not found in S3".format(object_name))
+                        _LOGGER.debug("ERROR, input port {} not found in S3".format(object_name))
                         input_ports[port_name] = None
                 else:
-                    print('Fetch DB {}'.format(port_value))                    
+                    _LOGGER.debug('Fetch DB {}'.format(port_value))                    
                     other_node_id = port_value.split(".")[1] 
                     other_output_port_id = port_value.split(".")[2]
                     other_task = self.session.query(ComputationalTask).filter(and_(ComputationalTask.node_id==other_node_id,
                                             ComputationalTask.pipeline_id==self.task.pipeline_id)).one()
                     if other_task is None:
-                        print("ERROR, input port {} not found in db".format(port_value))
+                        _LOGGER.debug("ERROR, input port {} not found in db".format(port_value))
                     else:
                         for oport in other_task.output:
                             if oport['key'] == other_output_port_id:
@@ -197,7 +205,7 @@ class Sidecar(object):
                     # the name should match what is in the db!
 
                     if name == 'output.json':
-                        print("POSTRO FOUND output.json")
+                        _LOGGER.debug("POSTRO FOUND output.json")
                         # parse and compare/update with the tasks output ports from db
                         output_ports = dict()                        
                         with open(filepath) as f:
@@ -206,7 +214,7 @@ class Sidecar(object):
                             for to in task_outputs:
                                 if to['key'] in output_ports.keys():
                                     to['value'] = output_ports[to['key']]
-                                    print("POSTRPO to['value]' becomes{}".format(output_ports[to['key']]))
+                                    _LOGGER.debug("POSTRPO to['value]' becomes{}".format(output_ports[to['key']]))
                                     flag_modified(self.task, "output")
                                     self.session.commit()
                     else:
@@ -215,7 +223,7 @@ class Sidecar(object):
                         ntry = 3
                         trial = 0
                         while not success and trial < ntry:
-                            print("POSTRO pushes to S3 {}, try {} from {}".format(object_name, ntry, trial))
+                            _LOGGER.debug("POSTRO pushes to S3 {}, try {} from {}".format(object_name, ntry, trial))
                             success = self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
                             trial = trial + 1
 
@@ -257,13 +265,13 @@ class Sidecar(object):
 
 
     def preprocess(self):
-        print('Pre-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        _LOGGER.debug('Pre-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         self._create_shared_folders()
         self._process_task_input()
         self._pull_image()
        
     def process(self):
-        print('Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        _LOGGER.debug('Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
 
         self.run_pool = True
 
@@ -282,14 +290,14 @@ class Sidecar(object):
                             'services_log'    : {'bind'  : '/log'}},
                  environment=self.docker_env)
         except Exception as e:
-            print(e)
+            _LOGGER.debug(e)
 
         time.sleep(1)
         self.run_pool = False
         while not fut.done():
             time.sleep(0.1)
 
-        print('DONE Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        _LOGGER.debug('DONE Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
 
     def run(self):
         self.preprocess()
@@ -297,7 +305,7 @@ class Sidecar(object):
         self.postprocess()
 
     def postprocess(self):
-        print('Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        _LOGGER.debug('Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         
         self._process_task_output()
         self._process_task_log()
@@ -306,7 +314,7 @@ class Sidecar(object):
         self.session.add(self.task)
         self.session.commit()
 
-        print('DONE Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
+        _LOGGER.debug('DONE Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         
 
     def _find_entry_point(self, G):
@@ -321,16 +329,16 @@ class Sidecar(object):
             ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id))),
             ComputationalTask.pipeline_id==task.pipeline_id)).all()
 
-        print("TASK {} ready? Checking ..".format(task.internal_id))
+        _LOGGER.debug("TASK {} ready? Checking ..".format(task.internal_id))
         for dep_task in tasks:
             job_id = dep_task.job_id
             if not job_id:
                 return False
             else:
-                print("TASK {} DEPENDS ON {} with stat {}".format(task.internal_id, dep_task.internal_id,dep_task.state))
+                _LOGGER.debug("TASK {} DEPENDS ON {} with stat {}".format(task.internal_id, dep_task.internal_id,dep_task.state))
                 if not dep_task.state == SUCCESS:
                     return False
-        print("TASK {} is ready".format(task.internal_id))
+        _LOGGER.debug("TASK {} is ready".format(task.internal_id))
 
         return True
 
@@ -348,7 +356,7 @@ class Sidecar(object):
             try:
                 task = query.one()
             except exc.SQLAlchemyError as err:
-                print(err)  
+                _LOGGER.debug(err)  
                 # no result found, just return
                 return next_task_nodes
 
@@ -357,12 +365,12 @@ class Sidecar(object):
     
             # already done or running and happy
             if task.job_id and (task.state == SUCCESS or task.state == RUNNING):
-                print("TASK {} ALREADY DONE OR RUNNING".format(task.internal_id))
+                _LOGGER.debug("TASK {} ALREADY DONE OR RUNNING".format(task.internal_id))
                 do_process = False
 
             # Check if node's dependecies are there
             if not self._is_node_ready(task, graph):
-                print("TASK {} NOT YET READY".format(task.internal_id))
+                _LOGGER.debug("TASK {} NOT YET READY".format(task.internal_id))
                 do_process = False
 
             if do_process:           
@@ -393,8 +401,8 @@ class Sidecar(object):
         return next_task_nodes
 
 SIDECAR = Sidecar()
-@celery.task(name='mytasks.pipeline', bind=True)
+@celery.task(name='comp.task', bind=True)
 def pipeline(self, pipeline_id, node_id=None):
     next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
     for node_id in next_task_nodes:
-        _task = celery.send_task('mytasks.pipeline', args=(pipeline_id, node_id), kwargs={})
+        _task = celery.send_task('comp.task', args=(pipeline_id, node_id), kwargs={})

@@ -100,7 +100,7 @@ async def start_pipeline(request):
 
     session.commit()
     
-    task = celery.send_task('mytasks.pipeline', args=(pipeline_id,), kwargs={})
+    task = celery.send_task('comp.task', args=(pipeline_id,), kwargs={})
 
     response = {}
     response['pipeline_name'] = pipeline_name
