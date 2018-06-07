@@ -12,7 +12,6 @@ before_install:
 install:
   - pip install pytest-cov
   - pip install coveralls
-  - pip install -r requirements.txt
   - pip --version
 
 before_script:
