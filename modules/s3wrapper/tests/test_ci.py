@@ -1,5 +1,6 @@
 import requests
 from pytest_docker import docker_ip, docker_services
+import pytest
 
 from requests.exceptions import (
     ConnectionError,

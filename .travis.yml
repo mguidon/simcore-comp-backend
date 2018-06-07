@@ -2,12 +2,16 @@ language: python
 python:
   - "3.6"
 
-sudo: false
+sudo: required
+services:
+  - docker
 
 before_install:
   - python --version
   - uname -a
   - lsb_release -a
+  - docker --version
+  - docker-compose --version
 
 install:
   - pip install pytest-cov
@@ -16,11 +20,22 @@ install:
   - pip --version
 
 before_script:
+  # change python path for 2nd party libraries
   - export PYTHONPATH=${PYTHONPATH}:${TRAVIS_BUILD_DIR}/modules/s3wrapper/src
+  # pre-cache docker images to avoid time-outs later on while the tests turn
+  - docker-compose -f modules/pytest_docker/tests/docker-compose.yml pull
+  - docker-compose -f modules/pytest_docker/tests/docker-compose.yml build
+  - docker-compose -f modules/s3wrapper/tests/docker-compose.yml pull
+  - docker-compose -f modules/s3wrapper/tests/docker-compose.yml build
 
 script:
   - pytest -v -m enable_travis modules/pytest_docker/
   - pytest -v -m enable_travis modules/s3wrapper/
+
+after_script:
+  # leave a clean slate (not sure whether this is needed)
+  - docker-compose -f modules/pytest_docker/tests/docker-compose.yml down
+  - docker-compose -f modules/s3wrapper/tests/docker-compose.yml down
 
 after_success:
   - coveralls
