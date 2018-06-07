@@ -1,5 +1,7 @@
 # Computational Backend for simcore
 
+[![Build Status](https://travis-ci.org/mguidon/simcore-comp-backend.svg?branch=reintegration)](https://travis-ci.org/mguidon/simcore-comp-backend)
+
 ## Overview
 The following diagram describes in detail the design of the computational backend.
 This is the part of the platform that evaluates non-interacting interdependent tasks that are described as directed acyclic graphs (dag).
