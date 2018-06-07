@@ -17,6 +17,7 @@ install:
   - pip install pytest-cov
   - pip install coveralls
   - pip install pytest-docker
+  - pip install minio
   - pip --version
 
 before_script:
