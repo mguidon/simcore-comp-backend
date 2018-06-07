@@ -23,7 +23,6 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from simcore_sdk.config.db import Config as db_config
 from simcore_sdk.config.docker import Config as docker_config
-from simcore_sdk.config.pika import Config as pika_config
 from simcore_sdk.config.rabbit import Config as rabbit_config
 from simcore_sdk.config.s3 import Config as s3_config
 from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
@@ -32,8 +31,8 @@ from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
 from s3wrapper.s3_client import S3Client
 from celery.utils.log import get_task_logger
 
-rc = rabbit_config()
-celery= Celery(rc.name, broker=rc.broker, backend=rc.backend)
+rabbit_config = rabbit_config()
+celery= Celery(rabbit_config.name, broker=rabbit_config.broker, backend=rabbit_config.backend)
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -45,7 +44,7 @@ _LOGGER.setLevel(logging.DEBUG)
 class Sidecar(object):
     def __init__(self):
         # publish subscribe config
-        self._pika_config = pika_config()
+        self._pika_config = rabbit_config
         self._pika_parameters = self._pika_config.parameters
         self._pika_log_channel = self._pika_config.log_channel
         self._pika_progress_channel = self._pika_config.progress_channel

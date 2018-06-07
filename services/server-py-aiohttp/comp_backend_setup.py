@@ -19,7 +19,6 @@ from comp_backend_worker import celery
 
 from async_sio import sio
 from simcore_sdk.config.db import Config as db_config
-from simcore_sdk.config.pika import Config as pika_config
 from simcore_sdk.config.rabbit import Config as rabbit_config
 
  # db config
@@ -29,11 +28,10 @@ Session = sessionmaker(db)
 session = Session()
 Base.metadata.create_all(db)
 
-# pika config
-pika_config = pika_config()
-pika_log_channel = pika_config.log_channel
-pika_progress_channel = pika_config.progress_channel
+# rabbit config
 rabbit_config = rabbit_config()
+pika_log_channel = rabbit_config.log_channel
+pika_progress_channel = rabbit_config.progress_channel
 rabbit_broker = rabbit_config.broker
 
 async def on_message(message: aio_pika.IncomingMessage):
