@@ -1,0 +1,30 @@
+language: python
+python:
+  - "3.6"
+
+sudo: false
+
+before_install:
+  - python --version
+  - uname -a
+  - lsb_release -a
+
+install:
+  - pip install pytest-cov
+  - pip install coveralls
+  - pip install -r requirements.txt
+  - pip --version
+
+before_script:
+  - export PYTHONPATH=${PYTHONPATH}:${TRAVIS_BUILD_DIR}/src
+
+script:
+  - pytest modules/ci_test
+
+after_success:
+  - coveralls
+
+notifications:
+  email:
+    on_success: never
+    on_failure: always
