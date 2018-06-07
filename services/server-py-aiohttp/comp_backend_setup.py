@@ -18,9 +18,9 @@ from models.pipeline_models import Base, ComputationalPipeline, ComputationalTas
 from comp_backend_worker import celery
 
 from async_sio import sio
-from simcore_sdk.config.db_config import Config as db_config
-from simcore_sdk.config.pika_config import Config as pika_config
-from simcore_sdk.config.rabbit_config import Config as rabbit_config
+from simcore_sdk.config.db import Config as db_config
+from simcore_sdk.config.pika import Config as pika_config
+from simcore_sdk.config.rabbit import Config as rabbit_config
 
  # db config
 db_config = db_config()

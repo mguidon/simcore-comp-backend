@@ -21,11 +21,11 @@ from sqlalchemy import and_, create_engine, exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
-from simcore_sdk.config.db_config import Config as db_config
-from simcore_sdk.config.docker_config import Config as docker_config
-from simcore_sdk.config.pika_config import Config as pika_config
-from simcore_sdk.config.rabbit_config import Config as rabbit_config
-from simcore_sdk.config.s3_config import Config as s3_config
+from simcore_sdk.config.db import Config as db_config
+from simcore_sdk.config.docker import Config as docker_config
+from simcore_sdk.config.pika import Config as pika_config
+from simcore_sdk.config.rabbit import Config as rabbit_config
+from simcore_sdk.config.s3 import Config as s3_config
 from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
                                     Base, ComputationalPipeline,
                                     ComputationalTask)
