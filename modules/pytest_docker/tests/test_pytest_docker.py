@@ -11,7 +11,7 @@ def is_responsive(url):
         response = requests.get(url)
         if response.status_code == 200:
             return True
-    except Exception as _ex:
+    except requests.exceptions.RequestException as _e:
         pass
     return False
     
