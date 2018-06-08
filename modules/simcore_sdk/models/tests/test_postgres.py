@@ -38,6 +38,3 @@ def test_postgres(docker_ip, docker_services):
         pass
 
     assert connection_ok
-
-
-    
