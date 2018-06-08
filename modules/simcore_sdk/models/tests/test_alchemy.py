@@ -10,8 +10,8 @@ from sqlalchemy import Column, Integer, String, JSON
 # pylint:disable=redefined-outer-name
 # pylint:disable=unused-import
 
-Base = declarative_base()
-class User(Base):
+BASE = declarative_base()
+class User(BASE):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     name = Column(String)
@@ -75,7 +75,7 @@ def session(engine, request):
 
 @pytest.mark.enable_travis
 def test_alchemy(engine, session):
-    Base.metadata.create_all(engine)
+    BASE.metadata.create_all(engine)
     users = ['alpha', 'beta', 'gamma']
     
     for u in users:
