@@ -1,5 +1,6 @@
 import psycopg2
 import pytest
+# pylint:disable=unused-import
 from pytest_docker import docker_ip, docker_services
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,7 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, JSON
 
 # pylint:disable=redefined-outer-name
-# pylint:disable=unused-import
+
 
 BASE = declarative_base()
 class User(BASE):

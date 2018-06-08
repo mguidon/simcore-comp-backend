@@ -32,7 +32,7 @@ class S3Client(object):
     def create_bucket(self, bucket_name, delete_contents_if_exists=False):
         try:
             if not self.exists_bucket(bucket_name):
-                 self.client.make_bucket(bucket_name)       
+                self.client.make_bucket(bucket_name)
             elif delete_contents_if_exists:
                 if self.__remove_objects_recursively(bucket_name):
                     self.remove_bucket(bucket_name)
@@ -102,13 +102,13 @@ class S3Client(object):
 
     def get_metadata(self, bucket_name, object_name):
         try:
-           obj = self.client.stat_object(bucket_name, object_name)
-           _metadata = obj.metadata
-           metadata = {}
-           for key in _metadata.keys():
-               _key = key[len(self.__metadata_prefix):]
-               metadata[_key] = _metadata[key]
-           return metadata
+            obj = self.client.stat_object(bucket_name, object_name)
+            _metadata = obj.metadata
+            metadata = {}
+            for key in _metadata.keys():
+                _key = key[len(self.__metadata_prefix):]
+                metadata[_key] = _metadata[key]
+            return metadata
            
         except ResponseError as err:
             print(err)

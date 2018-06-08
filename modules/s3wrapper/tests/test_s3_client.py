@@ -12,15 +12,12 @@ import s3wrapper
 from s3wrapper.s3_client import S3Client
 
 import requests
+
+# pylint:disable=unused-import
 from pytest_docker import docker_ip, docker_services
 
-from requests.exceptions import (
-    ConnectionError,
-)
 
 # pylint:disable=redefined-outer-name
-# pylint:disable=unused-import
-
 
 def is_responsive(url, code=200):
     """Check if something responds to ``url``."""
@@ -29,7 +26,7 @@ def is_responsive(url, code=200):
         if response.status_code == code:
             return True
         
-    except ConnectionError:
+    except Exception as _ex:
         pass
     return False
    

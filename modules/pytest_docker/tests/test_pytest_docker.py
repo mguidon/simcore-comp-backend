@@ -2,10 +2,6 @@ import requests
 from pytest_docker import docker_ip, docker_services
 import pytest
 
-from requests.exceptions import (
-    ConnectionError,
-)
-
 # pylint:disable=redefined-outer-name
 # pylint:disable=unused-import
 
@@ -15,7 +11,7 @@ def is_responsive(url):
         response = requests.get(url)
         if response.status_code == 200:
             return True
-    except ConnectionError:
+    except Exception as _ex:
         pass
     return False
     

@@ -1,10 +1,10 @@
 import requests
 import pytest
+
+# pylint:disable=unused-import
 from pytest_docker import docker_ip, docker_services
 
-from requests.exceptions import (
-    ConnectionError,
-)
+# pylint:disable=redefined-outer-name
 
 def is_responsive(url, code=200):
     """Check if something responds to ``url``."""
@@ -13,8 +13,10 @@ def is_responsive(url, code=200):
         if response.status_code == code:
             return True
         
-    except ConnectionError:
-        return False
+    except Exception as _ex:
+        pass
+    
+    return False
 
 @pytest.mark.enable_travis
 def test_minio(docker_ip, docker_services):
