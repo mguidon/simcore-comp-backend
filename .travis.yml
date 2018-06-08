@@ -39,7 +39,7 @@ before_script:
   - docker-compose -f modules/simcore_sdk/models/tests/docker-compose.yml build
 
 script:
-  - PY_FILES = $(strip $(shell find services -iname '*.py'))
+  - PY_FILES = find modules -iname '*.py'
   - /bin/bash -c "pylint --rcfile=.pylintrc --disable=import-error --disable=fixme --disable=C $(PY_FILES)"
   - pytest -v -m enable_travis modules/pytest_docker/
   - pytest -v -m enable_travis modules/s3wrapper/
