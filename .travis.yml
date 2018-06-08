@@ -20,13 +20,13 @@ before_install:
 install:
   - pip install pytest-cov
   - pip install coveralls
-  - pip install pytest-docker
-  - pip install minio
-  - pip install psycopg2
-  - pip install sqlalchemy
-  - pip install pylint
+  - pip install pylint  
+  - pip install -r modules/pytest_docker/requirements.txt
+  - pip install -r modules/s3wrapper/requirements.txt
+  - pip install -r modules/simcore_sdk/models/requirements.txt
   - pip --version
 
+# Todo MaG: I have to move everything into one docker-compose.yml due to conftest.py issues
 before_script:
   # change python path for 2nd party libraries
   - export PYTHONPATH=${PYTHONPATH}:${TRAVIS_BUILD_DIR}/modules/s3wrapper/src
