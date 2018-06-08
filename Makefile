@@ -1,4 +1,4 @@
-PY_FILES = $(strip $(shell find services -iname '*.py'))
+PY_FILES = $(strip $(shell find services modules -iname '*.py'))
 
 pylint:
 	# See exit codes and command line https://pylint.readthedocs.io/en/latest/user_guide/run.html#exit-codes

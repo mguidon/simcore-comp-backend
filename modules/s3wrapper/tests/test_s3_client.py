@@ -18,6 +18,8 @@ from requests.exceptions import (
     ConnectionError,
 )
 
+# pylint:disable=redefined-outer-name
+
 def is_responsive(url, code=200):
     """Check if something responds to ``url``."""
     try:
@@ -106,22 +108,22 @@ def test_file_upload_download(s3_client, bucket, text_files):
     object_name = "1"
     assert s3_client.upload_file(bucket, object_name, filepath)
     filepath2 = filepath + "."
-    assert s3_client.download_file(bucket, object_name ,filepath2)
+    assert s3_client.download_file(bucket, object_name, filepath2)
     assert filecmp.cmp(filepath2, filepath)
 
 @pytest.mark.enable_travis
 def test_file_upload_meta_data(s3_client, bucket, text_files):
     filepath = text_files(1)[0]
     object_name = "1"
-    id = uuid.uuid4()
-    metadata = {'user' : 'guidon', 'node_id' : str(id), 'boom-boom' : str(42.0)}
+    _id = uuid.uuid4()
+    metadata = {'user' : 'guidon', 'node_id' : str(_id), 'boom-boom' : str(42.0)}
 
     assert s3_client.upload_file(bucket, object_name, filepath, metadata=metadata)
 
     metadata2 = s3_client.get_metadata(bucket, object_name)
-    print (metadata2)
+    print(metadata2)
     assert metadata2["User"] == 'guidon'
-    assert metadata2["Node_id"] == str(id)
+    assert metadata2["Node_id"] == str(_id)
     assert metadata2["Boom-Boom"] == str(42.0)
 
 @pytest.mark.enable_travis
@@ -136,7 +138,7 @@ def test_sub_folders(s3_client, bucket, text_files):
 
 @pytest.mark.enable_travis
 def test_search(s3_client, bucket, text_files):
-    metadata = [ {'User' : 'alpha'}, {'User' : 'beta' }, {'User' : 'gamma'}]
+    metadata = [{'User' : 'alpha'}, {'User' : 'beta' }, {'User' : 'gamma'}]
 
     for i in range(3):
         bucket_sub_folder = "Folder"+ str(i+1)
@@ -149,18 +151,18 @@ def test_search(s3_client, bucket, text_files):
             counter += 1
 
     query = "DATA1"
-    results = s3_client.search(bucket, query, recursive = False, include_metadata=False)
-    assert len(results) == 0
+    results = s3_client.search(bucket, query, recursive=False, include_metadata=False)
+    assert not results
 
-    results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
+    results = s3_client.search(bucket, query, recursive=True, include_metadata=False)
     assert len(results) == 3
 
     query = "alpha"
-    results = s3_client.search(bucket, query, recursive = True, include_metadata=True)
+    results = s3_client.search(bucket, query, recursive=True, include_metadata=True)
     assert len(results) == 3
 
     query = "dat*"
-    results = s3_client.search(bucket, query, recursive = True, include_metadata=False)
+    results = s3_client.search(bucket, query, recursive=True, include_metadata=False)
     assert len(results) == 9
 
 @pytest.mark.enable_travis
@@ -216,7 +218,7 @@ def test_presigned_get_expired(s3_client, bucket, text_files):
     time.sleep(2)
     failed = False
     try:
-       urllib.request.urlretrieve(url, filepath2)
+        urllib.request.urlretrieve(url, filepath2)
     except:
         failed = True
 
@@ -234,8 +236,3 @@ def test_object_exists(s3_client, bucket, text_files):
     assert s3_client.upload_file(bucket, object_name, file2)
     assert not s3_client.exists_object(bucket, object_name, False)
     assert s3_client.exists_object(bucket, object_name, True)
-
-
-
-
-

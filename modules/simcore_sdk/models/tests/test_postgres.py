@@ -2,6 +2,9 @@ import psycopg2
 import pytest
 from pytest_docker import docker_ip, docker_services
 
+# pylint:disable=redefined-outer-name
+
+
 def is_responsive(dbname, user, password, host, port):
     """Check if there is a db"""
     try:
@@ -34,7 +37,7 @@ def test_postgres(docker_ip, docker_services):
         conn = psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
         conn.close()
         connection_ok = True
-    except psycopg2.OperationalError as ex:
+    except psycopg2.OperationalError as _ex:
         pass
 
     assert connection_ok

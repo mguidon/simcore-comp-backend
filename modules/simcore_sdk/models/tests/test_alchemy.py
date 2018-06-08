@@ -1,11 +1,13 @@
 import psycopg2
 import pytest
 from pytest_docker import docker_ip, docker_services
-from sqlalchemy import and_, create_engine, exc
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, JSON
+
+# pylint:disable=redefined-outer-name
 
 
 Base = declarative_base()
@@ -46,13 +48,13 @@ def engine(docker_ip, docker_services, request):
         conn = psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
         conn.close()
         connection_ok = True
-    except psycopg2.OperationalError as ex:
+    except psycopg2.OperationalError as _ex:
         pass
 
     assert connection_ok
     print("CONNECTION state {}".format(connection_ok))
     endpoint = 'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}'.format(
-            user=user, password=password, host=host, port=port, dbname=dbname)
+        user=user, password=password, host=host, port=port, dbname=dbname)
     engine = create_engine(endpoint, client_encoding='utf8')
 
     def fin():
@@ -86,7 +88,7 @@ def test_alchemy(engine, session):
     users2 = session.query(User).all()
     assert len(users2) == len(users)
 
-    alpha = session.query(User).filter(User.name=='alpha').one()
+    alpha = session.query(User).filter(User.name == 'alpha').one()
 
     assert alpha
 
@@ -95,5 +97,5 @@ def test_alchemy(engine, session):
     flag_modified(alpha, "data")
     session.commit()
 
-    alpha2 = session.query(User).filter(User.name=='alpha').one()
+    alpha2 = session.query(User).filter(User.name == 'alpha').one()
     assert alpha2.data['counter'] == 42
