@@ -19,6 +19,8 @@ from requests.exceptions import (
 )
 
 # pylint:disable=redefined-outer-name
+# pylint:disable=unused-import
+
 
 def is_responsive(url, code=200):
     """Check if something responds to ``url``."""
@@ -28,7 +30,8 @@ def is_responsive(url, code=200):
             return True
         
     except ConnectionError:
-        return False
+        pass
+    return False
    
 @pytest.fixture(scope="module")
 def s3_client(docker_ip, docker_services):
@@ -173,7 +176,7 @@ def test_presigned_put(s3_client, bucket, text_files):
     with open(filepath, 'rb') as fp:
         d = fp.read()
         req = urllib.request.Request(url, data=d, method='PUT')
-        with urllib.request.urlopen(req) as f:
+        with urllib.request.urlopen(req) as _f:
             pass
 
     filepath2 = filepath + "."
@@ -192,7 +195,7 @@ def test_presigned_put_expired(s3_client, bucket, text_files):
         req = urllib.request.Request(url, data=d, method='PUT')
         try:
             urllib.request.urlopen(req)
-        except:
+        except Exception as _ex:
             failed = True
     assert failed
 
@@ -219,7 +222,7 @@ def test_presigned_get_expired(s3_client, bucket, text_files):
     failed = False
     try:
         urllib.request.urlretrieve(url, filepath2)
-    except:
+    except Exception as _ex:
         failed = True
 
     assert failed

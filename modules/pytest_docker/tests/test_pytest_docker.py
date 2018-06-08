@@ -6,6 +6,9 @@ from requests.exceptions import (
     ConnectionError,
 )
 
+# pylint:disable=redefined-outer-name
+# pylint:disable=unused-import
+
 def is_responsive(url):
     """Check if something responds to ``url``."""
     try:
@@ -13,7 +16,9 @@ def is_responsive(url):
         if response.status_code == 200:
             return True
     except ConnectionError:
-        return False
+        pass
+    return False
+    
 
 @pytest.mark.enable_travis
 def test_integration(docker_ip, docker_services):

@@ -8,7 +8,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, JSON
 
 # pylint:disable=redefined-outer-name
-
+# pylint:disable=unused-import
 
 Base = declarative_base()
 class User(Base):

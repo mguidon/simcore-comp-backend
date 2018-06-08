@@ -8,8 +8,6 @@
 """
 # pylint: disable=C0111
 # pylint: disable=C0103
-import logging
-import json
 import socketio
 
 sio = socketio.AsyncServer(async_mode='aiohttp')
@@ -21,12 +19,12 @@ def connect(sid, environ):
     return True
 
 @sio.on('test')
-async def test(sid, data):
+async def test(sid):
     result = "hello from aiohttp aa"
     await sio.emit('test', data=result, room=sid)
 
 @sio.on('log')
-async def log(sid, data):
+async def log(sid):
     result = "hello from aiohttp aa"
     await sio.emit('log', data=result, room=sid)
 

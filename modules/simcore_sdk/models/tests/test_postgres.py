@@ -3,6 +3,7 @@ import pytest
 from pytest_docker import docker_ip, docker_services
 
 # pylint:disable=redefined-outer-name
+# pylint:disable=unused-import
 
 
 def is_responsive(dbname, user, password, host, port):
