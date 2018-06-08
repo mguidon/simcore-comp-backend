@@ -1,9 +1,9 @@
 import requests
+# pylint:disable=unused-import
 from pytest_docker import docker_ip, docker_services
 import pytest
 
 # pylint:disable=redefined-outer-name
-# pylint:disable=unused-import
 
 def is_responsive(url):
     """Check if something responds to ``url``."""

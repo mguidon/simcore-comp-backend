@@ -3,12 +3,10 @@ import os
 import uuid
 
 import pytest
-import urllib3
 import urllib
 import time
 from datetime import timedelta
 
-import s3wrapper
 from s3wrapper.s3_client import S3Client
 
 import requests
@@ -26,7 +24,7 @@ def is_responsive(url, code=200):
         if response.status_code == code:
             return True
         
-    except Exception as _ex:
+    except requests.exceptions.RequestException as _e:
         pass
     return False
    
@@ -192,7 +190,7 @@ def test_presigned_put_expired(s3_client, bucket, text_files):
         req = urllib.request.Request(url, data=d, method='PUT')
         try:
             urllib.request.urlopen(req)
-        except Exception as _ex:
+        except urllib.error.HTTPError as _ex:
             failed = True
     assert failed
 
@@ -219,7 +217,7 @@ def test_presigned_get_expired(s3_client, bucket, text_files):
     failed = False
     try:
         urllib.request.urlretrieve(url, filepath2)
-    except Exception as _ex:
+    except urllib.error.HTTPError as _ex:
         failed = True
 
     assert failed
