@@ -36,7 +36,7 @@ def s3_client(docker_ip, docker_services):
         docker_ip,
         docker_services.port_for('minio', 9000),
     )
-    print(url)
+
     # Wait until service is responsive.
     docker_services.wait_until_responsive(
         check=lambda: is_responsive(url, 403),
@@ -81,7 +81,7 @@ def text_files(tmpdir_factory):
 @pytest.mark.enable_travis
 def test_create_remove_bucket(s3_client):
     bucket_name = "simcore-test"
-    s3_client.create_bucket(bucket_name)
+    assert s3_client.create_bucket(bucket_name)
     assert s3_client.exists_bucket(bucket_name)
     s3_client.remove_bucket(bucket_name, delete_contents=True)
     assert not s3_client.exists_bucket(bucket_name)
@@ -89,7 +89,7 @@ def test_create_remove_bucket(s3_client):
 @pytest.mark.enable_travis
 def test_create_remove_bucket_with_contents(s3_client, text_files):
     bucket_name = "simcore-test"
-    s3_client.create_bucket(bucket_name)
+    assert s3_client.create_bucket(bucket_name)
     assert s3_client.exists_bucket(bucket_name)
     object_name = "dummy"
     filepath = text_files(1)[0]    
@@ -118,7 +118,7 @@ def test_file_upload_meta_data(s3_client, bucket, text_files):
     assert s3_client.upload_file(bucket, object_name, filepath, metadata=metadata)
 
     metadata2 = s3_client.get_metadata(bucket, object_name)
-    print(metadata2)
+
     assert metadata2["User"] == 'guidon'
     assert metadata2["Node_id"] == str(_id)
     assert metadata2["Boom-Boom"] == str(42.0)
