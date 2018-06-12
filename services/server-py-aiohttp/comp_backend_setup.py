@@ -14,7 +14,7 @@ from celery.result import AsyncResult
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from models.pipeline_models import Base, ComputationalPipeline, ComputationalTask
+from simcore_sdk.models.pipeline_models import Base, ComputationalPipeline, ComputationalTask
 from comp_backend_worker import celery
 
 from async_sio import sio

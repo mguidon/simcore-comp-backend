@@ -16,10 +16,10 @@ services:
       - '9081:8080'
     environment:
       - SIMCORE_WEB_CONFIG=production
-      - PYTHONPATH=/usr/src/modules/simcore_sdk/models/src:/usr/src/modules
+      - PYTHONPATH=/usr/src/packages/simcore-sdk/src
     volumes:
       - ./server-py-aiohttp:/usr/src/app
-      - ../modules:/usr/src/modules
+      - ../packages:/usr/src/packages
       - ./client-qx/source-output:/usr/src/app/client
     depends_on: 
       - client-qx
@@ -46,15 +46,13 @@ services:
       - output:/output
       - log:/log
       - ./sidecar/src/sidecar:/work/sidecar
-#      - ../modules/simcore_sdk/models/src/models:/work/models
-#      - ../modules/s3wrapper/src/s3wrapper:/work/s3wrapper
-      - ../modules:/work/modules
+      - ../packages:/work/packages
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"
       - "3000:3000"
     environment:
-      - PYTHONPATH=/work/models
+      - PYTHONPATH=/work/packages
     environment:
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}

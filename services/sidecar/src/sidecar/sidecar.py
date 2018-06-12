@@ -25,7 +25,7 @@ from simcore_sdk.config.db import Config as db_config
 from simcore_sdk.config.docker import Config as docker_config
 from simcore_sdk.config.rabbit import Config as rabbit_config
 from simcore_sdk.config.s3 import Config as s3_config
-from models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
+from simcore_sdk.models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
                                     Base, ComputationalPipeline,
                                     ComputationalTask)
 from s3wrapper.s3_client import S3Client
