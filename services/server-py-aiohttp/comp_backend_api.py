@@ -21,18 +21,18 @@ from comp_backend_worker import celery
 db_config = db_config()
 db = create_engine(db_config.endpoint, client_encoding='utf8')
 Session = sessionmaker(db)
-session = Session()
+db_session = Session()
 Base.metadata.create_all(db)
 
 comp_backend_routes = web.RouteTableDef()
 
-async def async_request(method, session, url, json=None, timeout=10):
+async def async_request(method, session, url, data=None, timeout=10):
     async with async_timeout.timeout(timeout):
         if method == "GET":
             async with session.get(url) as response:
                 return await response.json()
         elif method == "POST":
-            async with session.post(url, json=json) as response:
+            async with session.post(url, json=data) as response:
                 return await response.json()
 
 @comp_backend_routes.post('/start_pipeline')
@@ -95,8 +95,8 @@ async def start_pipeline(request):
 
     pipeline = ComputationalPipeline(dag_adjacency_list=dag_adjacency_list, state=0)
 
-    session.add(pipeline)
-    session.flush()
+    db_session.add(pipeline)
+    db_session.flush()
 
     pipeline_id = pipeline.pipeline_id
     pipeline_name = "mockup"
@@ -107,9 +107,9 @@ async def start_pipeline(request):
         new_task = ComputationalTask(pipeline_id=pipeline_id, node_id=node_id, internal_id=internal_id, image=task['image'],
                     input=task['input'], output=task['output'], submit=datetime.datetime.utcnow())
         internal_id = internal_id+1
-        session.add(new_task)
+        db_session.add(new_task)
 
-    session.commit()
+    db_session.commit()
     
     task = celery.send_task('comp.task', args=(pipeline_id,), kwargs={})
 

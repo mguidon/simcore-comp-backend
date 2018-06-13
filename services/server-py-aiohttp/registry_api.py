@@ -22,5 +22,5 @@ async def services(request):
         "405":
             description: invalid HTTP Method
     """
-
+    _a = request
     return web.Response(text="This will be a list of comp. services")
