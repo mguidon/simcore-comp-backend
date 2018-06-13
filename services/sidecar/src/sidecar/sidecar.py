@@ -1,11 +1,7 @@
-import hashlib
 import json
 import os
-import random
 import shutil
-import sys
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import logging
@@ -13,10 +9,7 @@ import logging
 import docker
 import pika
 from celery import Celery
-from celery.result import AsyncResult
-from celery.signals import (after_setup_logger, task_failure, task_postrun,
-                            task_prerun)
-from celery.states import SUCCESS
+from celery.states import SUCCESS as CSUCCESS
 from sqlalchemy import and_, create_engine, exc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
@@ -25,8 +18,8 @@ from simcore_sdk.config.db import Config as db_config
 from simcore_sdk.config.docker import Config as docker_config
 from simcore_sdk.config.rabbit import Config as rabbit_config
 from simcore_sdk.config.s3 import Config as s3_config
-from simcore_sdk.models.pipeline_models import (FAILED, PENDING, RUNNING, SUCCESS, UNKNOWN,
-                                    Base, ComputationalPipeline,
+from simcore_sdk.models.pipeline_models import (RUNNING, SUCCESS,
+                                    ComputationalPipeline,
                                     ComputationalTask)
 from s3wrapper.s3_client import S3Client
 from celery.utils.log import get_task_logger
@@ -40,6 +33,24 @@ logging.basicConfig(level=logging.DEBUG)
 _LOGGER = get_task_logger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
 
+
+def _delete_contents(folder):
+    for file in os.listdir(folder):
+        file_path = os.path.join(folder, file)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path): 
+                shutil.rmtree(file_path)
+        except (OSError, IOError) as _e:
+            logging.exception("Could not delete files")
+
+def _find_entry_point(G):
+    result = []
+    for node in G.nodes:
+        if len(list(G.predecessors(node))) == 0:
+            result.append(node)
+    return result
 
 class Sidecar(object):
     def __init__(self):
@@ -55,6 +66,9 @@ class Sidecar(object):
         self.docker_registry = self._docker_config.registry
         self.docker_registry_user = self._docker_config.user
         self.docker_registry_pwd = self._docker_config.pwd
+        self.docker_image_name = ""
+        self.docker_image_tag = ""
+        self.docker_env = []
 
         # object storage config
         self._s3_config = s3_config()
@@ -72,24 +86,21 @@ class Sidecar(object):
         # thread pool
         self.pool = ThreadPoolExecutor(1)
 
+        # current task
         self.task = None
+        self.run_pool = False
 
-    def _delete_contents(self, folder):
-        for file in os.listdir(folder):
-            file_path = os.path.join(folder, file)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path): shutil.rmtree(file_path)
-            except Exception as e:
-                _LOGGER.debug(e)
+        # shared folders
+        self.shared_input_folder = ""
+        self.shared_output_folder = ""
+        self.shared_log_folder = ""
 
     def _create_shared_folders(self):
         for folder in [self.shared_input_folder, self.shared_log_folder, self.shared_output_folder]:
             if not os.path.exists(folder):
                 os.makedirs(folder)
             else:
-                self._delete_contents(folder)
+                _delete_contents(folder)
 
     def _process_task_input(self):
         """ Writes input key-value pairs into a dictionary
@@ -100,12 +111,12 @@ class Sidecar(object):
             The dictionary is dumped to input.json, files are dumped
             as port['key']. Both end up in /input/ of the container
         """
-        input = self.task.input
+        _input = self.task.input
         _LOGGER.debug('Input parsing for {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
-        _LOGGER.debug(input)
+        _LOGGER.debug(_input)
 
         input_ports = dict()
-        for port in input:
+        for port in _input:
             _LOGGER.debug(port)
             port_name = port['key']
             port_value = port['value']
@@ -226,10 +237,8 @@ class Sidecar(object):
                             success = self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
                             trial = trial + 1
 
-        except:
-            import traceback
-            traceback.print_exc()
-            return -2
+        except (OSError, IOError) as _e:
+            logging.exception("Could not process output")
 
     def _process_task_log(self):
         """ There will be some files in the /log
@@ -237,18 +246,13 @@ class Sidecar(object):
                 - put them all into S3 /log
         """
         directory = self.shared_log_folder
-        if not os.path.exists(directory):
-            return
-        try:
+        if os.path.exists(directory):
             for root, _dirs, files in os.walk(directory):
                 for name in files:
                     filepath = os.path.join(root, name)
                     object_name = str(self.task.pipeline_id) + "/" + self.task.node_id + "/log/" + name
-                    self.s3_client.upload_file(self.s3_bucket, object_name, filepath)
-        except:
-            import traceback
-            traceback.print_exc()
-            return -2
+                    if not self.s3_client.upload_file(self.s3_bucket, object_name, filepath):
+                        _LOGGER.error("Error uploading file to S3")
 
     def initialize(self, task):
         self.task = task
@@ -288,8 +292,13 @@ class Sidecar(object):
                             'services_output' : {'bind' : '/output'},
                             'services_log'    : {'bind'  : '/log'}},
                  environment=self.docker_env)
-        except Exception as e:
-            _LOGGER.debug(e)
+        except docker.errors.ContainerError as _e:
+            _LOGGER.error("Run container returned non zero exit code")
+        except docker.errors.ImageNotFound as _e:
+            _LOGGER.error("Run container: Image not found")
+        except docker.errors.APIError as _e:
+            _LOGGER.error("Run Container: Server returns error")
+
 
         time.sleep(1)
         self.run_pool = False
@@ -316,13 +325,6 @@ class Sidecar(object):
         _LOGGER.debug('DONE Post-Processing Pipeline {} and node {} from container'.format(self.task.pipeline_id, self.task.internal_id))
         
 
-    def _find_entry_point(self, G):
-        result = []
-        for node in G.nodes:
-            if len(list(G.predecessors(node))) == 0:
-                result.append(node)
-        return result
-
     def _is_node_ready(self, task, graph):
         tasks = self.session.query(ComputationalTask).filter(and_(
             ComputationalTask.node_id.in_(list(graph.predecessors(task.node_id))),
@@ -342,8 +344,8 @@ class Sidecar(object):
         return True
 
     def inspect(self, celery_task, pipeline_id, node_id):
-        pipeline = self.session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
-        graph = pipeline.execution_graph
+        _pipeline = self.session.query(ComputationalPipeline).filter_by(pipeline_id=pipeline_id).one()
+        graph = _pipeline.execution_graph
         next_task_nodes = []
         if node_id:
             do_process = True
@@ -355,7 +357,7 @@ class Sidecar(object):
             try:
                 task = query.one()
             except exc.SQLAlchemyError as err:
-                _LOGGER.debug(err)  
+                _LOGGER.error(err)  
                 # no result found, just return
                 return next_task_nodes
 
@@ -393,9 +395,9 @@ class Sidecar(object):
 
             next_task_nodes = list(graph.successors(node_id))
         else:
-            next_task_nodes = self._find_entry_point(graph)
+            next_task_nodes = _find_entry_point(graph)
 
-        celery_task.update_state(state=SUCCESS)
+        celery_task.update_state(state=CSUCCESS)
         
         return next_task_nodes
 
@@ -403,5 +405,5 @@ SIDECAR = Sidecar()
 @celery.task(name='comp.task', bind=True)
 def pipeline(self, pipeline_id, node_id=None):
     next_task_nodes = SIDECAR.inspect(self, pipeline_id, node_id)
-    for node_id in next_task_nodes:
-        _task = celery.send_task('comp.task', args=(pipeline_id, node_id), kwargs={})
+    for _node_id in next_task_nodes:
+        _task = celery.send_task('comp.task', args=(pipeline_id, _node_id), kwargs={})
