@@ -3,15 +3,26 @@
 """
 # pylint: disable=C0103
 
-from aiohttp import web
-import aiohttp
-import asyncio
-import async_timeout
-import uuid
-import json
 import datetime
+import json
 
-from comp_backend_setup import *
+import async_timeout
+from aiohttp import web
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from simcore_sdk.config.db import Config as db_config
+from simcore_sdk.models.pipeline_models import (Base, ComputationalPipeline,
+                                                ComputationalTask)
+
+from comp_backend_worker import celery                           
+
+# db config
+db_config = db_config()
+db = create_engine(db_config.endpoint, client_encoding='utf8')
+Session = sessionmaker(db)
+session = Session()
+Base.metadata.create_all(db)
 
 comp_backend_routes = web.RouteTableDef()
 

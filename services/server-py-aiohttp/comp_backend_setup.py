@@ -1,32 +1,9 @@
 import json
-import os
-import threading
-import time
-import uuid
 
-import celery.states as states
-import pika
-import asyncio
 import aio_pika
 
-import requests
-from celery.result import AsyncResult
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from simcore_sdk.models.pipeline_models import Base, ComputationalPipeline, ComputationalTask
-from comp_backend_worker import celery
-
 from async_sio import sio
-from simcore_sdk.config.db import Config as db_config
 from simcore_sdk.config.rabbit import Config as rabbit_config
-
- # db config
-db_config = db_config()
-db = create_engine(db_config.endpoint, client_encoding='utf8')
-Session = sessionmaker(db)
-session = Session()
-Base.metadata.create_all(db)
 
 # rabbit config
 rabbit_config = rabbit_config()

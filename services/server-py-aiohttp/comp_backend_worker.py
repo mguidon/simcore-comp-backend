@@ -1,4 +1,3 @@
-import os
 from celery import Celery
 from simcore_sdk.config.rabbit import Config as rabbit_config
 
