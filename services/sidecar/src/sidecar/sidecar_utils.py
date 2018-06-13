@@ -5,8 +5,15 @@ import docker
 
 from simcore_sdk.config.docker import Config as docker_config
 from simcore_sdk.config.s3 import Config as s3_config
+from simcore_sdk.config.db import Config as db_config
+
 from s3wrapper.s3_client import S3Client
 from simcore_sdk.config.rabbit import Config as rabbit_config
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from concurrent.futures import ThreadPoolExecutor
 
 
 def delete_contents(folder):
@@ -55,3 +62,21 @@ class RabbitSettings(object):
         self.parameters = self._pika.parameters
         self.log_channel = self._pika.log_channel
         self.progress_channel = self._pika.progress_channel
+
+class DbSettings(object):
+    def __init__(self):
+        self._db_config = db_config()
+        self.db = create_engine(self._db_config.endpoint, client_encoding='utf8')
+        self.Session = sessionmaker(self.db)
+        self.session = self.Session()
+
+class ExecutorSettings(object):
+    def __init__(self):
+        # Pool
+        self.pool = ThreadPoolExecutor(1)
+        self.run_pool = False
+
+        # shared folders
+        self.in_dir = ""
+        self.out_dir = ""
+        self.log_dir = ""
